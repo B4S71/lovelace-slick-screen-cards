@@ -109,4 +109,5 @@ export interface HeatingCoolingCardConfig extends LovelaceCardConfig {
   min_temp?: number;
   max_temp?: number;
   unit?: string;
+  simple_mode?: boolean;
 }

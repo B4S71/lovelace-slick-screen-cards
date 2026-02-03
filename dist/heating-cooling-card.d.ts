@@ -1,6 +1,6 @@
 /**
- * Heating/Cooling Card
- * @version 0.1.0
+ * Heating/Cooling Card - Refined Version
+ * @version 0.2.0
  */
 export {};
 //# sourceMappingURL=heating-cooling-card.d.ts.map
