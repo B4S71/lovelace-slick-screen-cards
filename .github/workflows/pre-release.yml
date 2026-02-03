@@ -1,0 +1,110 @@
+name: Pre-Release
+
+on:
+  push:
+    branches:
+      - main
+      - master
+    paths:
+      - 'src/**'
+      - 'package.json'
+      - 'rollup.config.mjs'
+      - 'tsconfig.json'
+
+permissions:
+  contents: write
+
+jobs:
+  pre-release:
+    name: Create Pre-Release
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Needed to get all tags
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Calculate next pre-release version
+        id: version
+        run: |
+          # Get the latest tag
+          LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
+          echo "Latest tag: $LATEST_TAG"
+          
+          # Extract base version (e.g., v0.2.0 from v0.2.0-alpha.5)
+          if [[ "$LATEST_TAG" =~ ^v([0-9]+)\.([0-9]+)\.([0-9]+) ]]; then
+            MAJOR="${BASH_REMATCH[1]}"
+            MINOR="${BASH_REMATCH[2]}"
+            PATCH="${BASH_REMATCH[3]}"
+          else
+            MAJOR=0
+            MINOR=1
+            PATCH=0
+          fi
+          
+          # Check if latest tag is a pre-release
+          if [[ "$LATEST_TAG" =~ -alpha\.([0-9]+)$ ]]; then
+            # Increment alpha number
+            ALPHA_NUM="${BASH_REMATCH[1]}"
+            NEXT_ALPHA=$((ALPHA_NUM + 1))
+            NEW_VERSION="v${MAJOR}.${MINOR}.${PATCH}-alpha.${NEXT_ALPHA}"
+          elif [[ "$LATEST_TAG" =~ -beta\.([0-9]+)$ ]]; then
+            # Increment beta number
+            BETA_NUM="${BASH_REMATCH[1]}"
+            NEXT_BETA=$((BETA_NUM + 1))
+            NEW_VERSION="v${MAJOR}.${MINOR}.${PATCH}-beta.${NEXT_BETA}"
+          else
+            # Start new alpha cycle with incremented patch
+            NEW_PATCH=$((PATCH + 1))
+            NEW_VERSION="v${MAJOR}.${MINOR}.${NEW_PATCH}-alpha.1"
+          fi
+          
+          echo "New version: $NEW_VERSION"
+          echo "VERSION=$NEW_VERSION" >> $GITHUB_OUTPUT
+
+      - name: Create and push tag
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag ${{ steps.version.outputs.VERSION }}
+          git push origin ${{ steps.version.outputs.VERSION }}
+
+      - name: Create release archive
+        run: |
+          cd dist
+          zip -r ../slick-screen-cards.zip slick-screen-cards.js slick-screen-cards.js.map
+          cd ..
+
+      - name: Create Pre-Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ steps.version.outputs.VERSION }}
+          name: ${{ steps.version.outputs.VERSION }}
+          files: |
+            dist/slick-screen-cards.js
+            dist/slick-screen-cards.js.map
+            dist/wind-compass-card.js
+            dist/wind-compass-card.js.map
+            dist/minimal-weather-card.js
+            dist/minimal-weather-card.js.map
+            dist/squircle-clock-card.js
+            dist/squircle-clock-card.js.map
+            slick-screen-cards.zip
+          generate_release_notes: true
+          draft: false
+          prerelease: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
