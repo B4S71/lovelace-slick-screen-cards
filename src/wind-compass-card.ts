@@ -117,17 +117,20 @@ class WindCompassCard extends HTMLElement {
       <style>
         :host {
           display: block;
+          width: 100%;
+          height: 100%;
           font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
           font-weight: 200;
+          background: var(--ha-card-background, var(--card-background-color, white));
+          border-radius: var(--ha-card-border-radius, 12px);
+          box-shadow: var(--ha-card-box-shadow, none);
+          overflow: hidden;
+          box-sizing: border-box;
+          position: relative;
         }
         
         ha-card {
-          height: 100%;
-          background: var(--ha-card-background, var(--card-background-color, white));
-          box-shadow: none; 
-          border: 1px solid var(--divider-color, rgba(0,0,0,0.05));
-          border-radius: 16px;
-          overflow: hidden;
+          display: none;
         }
 
         .container {
@@ -325,25 +328,23 @@ class WindCompassCard extends HTMLElement {
         }
       </style>
 
-      <ha-card>
-        <div class="container">
-          <div class="compass-container" id="container">
-            <div class="compass-center-dot"></div>
-            <div class="compass-marker" id="marker"></div>
-            <div class="compass-tape" id="tape"></div>
-          </div>
-
-          <div class="speed-container">
-            <div class="speed-bar-bg">
-              <div class="speed-bar-gust" id="gust-bar"></div>
-              <div class="speed-bar-fill" id="speed-bar"></div>
-              <div class="limit-marker" id="limit-raffstore" title="Raffstore Limit"></div>
-              <div class="limit-marker" id="limit-rollo" title="Rollo Limit"></div>
-            </div>
-            <div class="speed-text" id="speed-text">--</div>
-          </div>
+      <div class="container">
+        <div class="compass-container" id="container">
+          <div class="compass-center-dot"></div>
+          <div class="compass-marker" id="marker"></div>
+          <div class="compass-tape" id="tape"></div>
         </div>
-      </ha-card>
+
+        <div class="speed-container">
+          <div class="speed-bar-bg">
+            <div class="speed-bar-gust" id="gust-bar"></div>
+            <div class="speed-bar-fill" id="speed-bar"></div>
+            <div class="limit-marker" id="limit-raffstore" title="Raffstore Limit"></div>
+            <div class="limit-marker" id="limit-rollo" title="Rollo Limit"></div>
+          </div>
+          <div class="speed-text" id="speed-text">--</div>
+        </div>
+      </div>
     `;
   }
 
