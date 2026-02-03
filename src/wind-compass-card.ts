@@ -598,8 +598,8 @@ class WindCompassCard extends HTMLElement {
 
   public setConfig(config: WindCompassCardConfig): void {
     if (!config.direction_entity)
-      throw new Error('direction_entity fehlt');
-    if (!config.speed_entity) throw new Error('speed_entity fehlt');
+      throw new Error('direction_entity is required');
+    if (!config.speed_entity) throw new Error('speed_entity is required');
     this.config = config;
   }
 
