@@ -137,7 +137,7 @@ class HeatingCoolingCard extends HTMLElement {
     } else {
       // Logic relies on setpoints. If a setpoint is effectively "disabled" (not supported),
       // we still need a reasonable range.
-      let vals = [this._currentTemp];
+      const vals = [this._currentTemp];
       if (this._canHeat) vals.push(this._heatSetpoint);
       if (this._canCool) vals.push(this._coolSetpoint);
       this._minTemp = Math.floor(Math.min(...vals) - 5);
@@ -146,7 +146,7 @@ class HeatingCoolingCard extends HTMLElement {
     if (this.config.max_temp !== undefined) {
       this._maxTemp = this.config.max_temp;
     } else {
-      let vals = [this._currentTemp];
+      const vals = [this._currentTemp];
       if (this._canHeat) vals.push(this._heatSetpoint);
       if (this._canCool) vals.push(this._coolSetpoint);
       this._maxTemp = Math.ceil(Math.max(...vals) + 5);
