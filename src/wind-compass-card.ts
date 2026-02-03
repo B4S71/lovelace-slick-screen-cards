@@ -1,3 +1,8 @@
+/**
+ * Wind Compass Card
+ * @version 0.1.0
+ */
+
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import type {
   HomeAssistant,

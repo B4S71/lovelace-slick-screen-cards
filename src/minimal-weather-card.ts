@@ -1,3 +1,8 @@
+/**
+ * Mini Weather Card
+ * @version 0.1.0
+ */
+
 import { LitElement, html, css } from 'lit';
 import type {
   HomeAssistant,
@@ -6,7 +11,7 @@ import type {
   HistoryDataPoint,
 } from './types';
 
-const CARD_VERSION = "8.0.0";
+const CARD_VERSION = "0.1.0";
 
 console.info(
   `%c MINI-WEATHER-CARD %c ${CARD_VERSION} `,

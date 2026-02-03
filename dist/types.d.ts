@@ -1,5 +1,6 @@
 /**
  * Type definitions for Home Assistant custom cards
+ * @version 0.1.0
  */
 export interface HomeAssistant {
     states: Record<string, HassEntity>;

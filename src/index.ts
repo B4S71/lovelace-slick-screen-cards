@@ -1,3 +1,8 @@
+/**
+ * Lovelace Slick Screen Cards
+ * @version 0.1.0
+ */
+
 // Import and register all Slick Screen Cards
 import './wind-compass-card';
 import './minimal-weather-card';
