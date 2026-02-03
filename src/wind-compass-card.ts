@@ -652,11 +652,3 @@ class WindCompassCard extends HTMLElement {
 }
 
 customElements.define('wind-compass-card', WindCompassCard);
-
-window.customCards = window.customCards || [];
-window.customCards.push({
-  type: 'wind-compass-card',
-  name: 'Wind Compass Card',
-  preview: true,
-  description: 'Apple-style wind direction compass with speed indicator'
-});
