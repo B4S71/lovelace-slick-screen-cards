@@ -118,6 +118,7 @@ class WindCompassCard extends HTMLElement {
         :host {
           display: block;
           font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+          font-weight: 200;
         }
         
         ha-card {
