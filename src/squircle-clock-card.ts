@@ -1,5 +1,16 @@
+import type {
+  HomeAssistant,
+  SquircleClockCardConfig,
+} from './types';
+
+interface SchemaItem {
+  name: string;
+  label: string;
+  selector: any;
+}
+
 // --- KONFIGURATIONSSCHEMA ---
-const CARD_SCHEMA = [
+const CARD_SCHEMA: SchemaItem[] = [
   {
     name: "display_mode",
     label: "Anzeigemodus",
@@ -30,6 +41,20 @@ const CARD_SCHEMA = [
 ];
 
 class SquircleClockCard extends HTMLElement {
+  private _hass?: HomeAssistant;
+  private config!: SquircleClockCardConfig;
+  private _timer?: number;
+  private _resizeObserver?: ResizeObserver;
+  private hourHand?: SVGLineElement | null;
+  private minuteHand?: SVGLineElement | null;
+  private secondHand?: SVGLineElement | null;
+  private _center?: { x: number; y: number };
+  private _timeDisplay?: HTMLElement | null;
+  private _dateDisplay?: HTMLElement | null;
+  private _ticks: (HTMLElement | null)[] = [];
+  private _lastMin: number = -1;
+  private _lastSecond: number = -1;
+
   static getConfigElement() {
     return document.createElement("squircle-clock-editor");
   }
@@ -42,9 +67,9 @@ class SquircleClockCard extends HTMLElement {
     };
   }
 
-  set hass(hass) { this._hass = hass; }
+  set hass(hass: HomeAssistant) { this._hass = hass; }
   
-  setConfig(config) { 
+  setConfig(config: SquircleClockCardConfig) { 
     this.config = config; 
     if (this.shadowRoot) {
         this._render();
@@ -72,7 +97,7 @@ class SquircleClockCard extends HTMLElement {
 
   disconnectedCallback() {
     this._stopClock();
-    this._resizeObserver.disconnect();
+    this._resizeObserver?.disconnect();
   }
 
   _startClock() {
@@ -113,10 +138,10 @@ class SquircleClockCard extends HTMLElement {
     this._timer = requestAnimationFrame(update);
   }
 
-  _stopClock() { cancelAnimationFrame(this._timer); }
+  _stopClock() { if (this._timer) cancelAnimationFrame(this._timer); }
 
   // --- MATHEMATIK ---
-  _getPointOnRoundedRect(angleDeg, w, h, radius, inset) {
+  _getPointOnRoundedRect(angleDeg: number, w: number, h: number, radius: number, inset: number): { x: number; y: number } {
     const angleRad = (angleDeg - 90) * (Math.PI / 180);
     const xCenter = w / 2;
     const yCenter = h / 2;
@@ -130,7 +155,7 @@ class SquircleClockCard extends HTMLElement {
     const absCos = Math.abs(Math.cos(angleRad));
     const absSin = Math.abs(Math.sin(angleRad));
     
-    let x, y;
+    let x: number, y: number;
     if (halfW * absSin <= halfH * absCos) {
       x = halfW * Math.sign(Math.cos(angleRad));
       y = halfW * Math.tan(angleRad) * Math.sign(Math.cos(angleRad));
@@ -153,7 +178,7 @@ class SquircleClockCard extends HTMLElement {
   }
 
   // --- CSS FÜR SCHRIFTARTEN ---
-  _getFontStyle() {
+  _getFontStyle(): string {
       const style = this.config.font_style || 'standard';
       switch(style) {
           case 'thin':
@@ -178,6 +203,7 @@ class SquircleClockCard extends HTMLElement {
 
   // --- RENDERING ---
   _render() {
+    if (!this.shadowRoot) return;
     this.shadowRoot.innerHTML = `
       <style>
         :host {
@@ -214,7 +240,6 @@ class SquircleClockCard extends HTMLElement {
             opacity: 0.6; 
             margin-top: 4px; 
             text-transform: uppercase; 
-            /* Datum ist bei Retro auch fett, bei Thin normal */
             font-weight: ${this.config.font_style === 'thin' ? '400' : 'bold'};
         }
         
@@ -230,6 +255,7 @@ class SquircleClockCard extends HTMLElement {
   }
 
   _drawContent() {
+    if (!this.shadowRoot) return;
     const container = this.shadowRoot.getElementById('content');
     if (!container) return;
 
@@ -254,7 +280,7 @@ class SquircleClockCard extends HTMLElement {
     }
   }
 
-  _drawAnalog(container, w, h, radius, minDim) {
+  _drawAnalog(container: HTMLElement, w: number, h: number, radius: number, minDim: number) {
     let ticks = '';
     for (let i = 0; i < 60; i++) {
       const isHour = i % 5 === 0;
@@ -291,13 +317,13 @@ class SquircleClockCard extends HTMLElement {
         <circle id="center-dot" cx="${w/2}" cy="${h/2}" r="3.5" />
       </svg>
     `;
-    this.hourHand = this.shadowRoot.getElementById('hour-hand');
-    this.minuteHand = this.shadowRoot.getElementById('minute-hand');
-    this.secondHand = this.shadowRoot.getElementById('second-hand');
+    this.hourHand = this.shadowRoot?.querySelector('#hour-hand');
+    this.minuteHand = this.shadowRoot?.querySelector('#minute-hand');
+    this.secondHand = this.shadowRoot?.querySelector('#second-hand');
     this._center = { x: w/2, y: h/2 };
   }
 
-  _drawDigital(container, w, h, radius, minDim) {
+  _drawDigital(container: HTMLElement, w: number, h: number, radius: number, minDim: number) {
     let ticks = '';
     for (let i = 0; i < 60; i++) {
       const angle = i * 6;
@@ -318,10 +344,10 @@ class SquircleClockCard extends HTMLElement {
         <div class="date-small" id="date-display" style="font-size: ${minDim * 0.08}px">--</div>
       </div>
     `;
-    this._timeDisplay = this.shadowRoot.getElementById('time-display');
-    this._dateDisplay = this.shadowRoot.getElementById('date-display');
+    this._timeDisplay = this.shadowRoot?.querySelector('#time-display');
+    this._dateDisplay = this.shadowRoot?.querySelector('#date-display');
     this._ticks = [];
-    for(let i=0; i<60; i++) this._ticks.push(this.shadowRoot.getElementById(`tick-${i}`));
+    for(let i=0; i<60; i++) this._ticks.push(this.shadowRoot?.querySelector(`#tick-${i}`) || null);
     
     this._lastMin = -1;
     this._lastSecond = -1;
@@ -338,18 +364,18 @@ class SquircleClockCard extends HTMLElement {
     }
   }
 
-  _updateAnalog(time) {
+  _updateAnalog(time: Date) {
     if (!this.hourHand) return;
     const s = time.getSeconds() + time.getMilliseconds() / 1000;
     const m = time.getMinutes() + s / 60;
     const h = (time.getHours() % 12) + m / 60;
-    const { x, y } = this._center;
-    this.secondHand.setAttribute('transform', `rotate(${s * 6} ${x} ${y})`);
-    this.minuteHand.setAttribute('transform', `rotate(${m * 6} ${x} ${y})`);
+    const { x, y } = this._center || { x: 0, y: 0 };
+    this.secondHand?.setAttribute('transform', `rotate(${s * 6} ${x} ${y})`);
+    this.minuteHand?.setAttribute('transform', `rotate(${m * 6} ${x} ${y})`);
     this.hourHand.setAttribute('transform', `rotate(${h * 30} ${x} ${y})`);
   }
 
-  _updateDigital(time, force = false) {
+  _updateDigital(time: Date, force: boolean = false) {
     if (!this._timeDisplay) return;
     const seconds = time.getSeconds();
 
@@ -358,19 +384,21 @@ class SquircleClockCard extends HTMLElement {
         const minutes = String(time.getMinutes()).padStart(2, '0');
         this._timeDisplay.textContent = `${hours}:${minutes}`;
         
-        const options = { weekday: 'short', day: 'numeric' };
-        const localeOptions = { ...options };
+        const options: Intl.DateTimeFormatOptions = { weekday: 'short', day: 'numeric' };
+        const localeOptions: Intl.DateTimeFormatOptions = { ...options };
         if (this.config.timezone) localeOptions.timeZone = this.config.timezone;
-        this._dateDisplay.textContent = new Date().toLocaleDateString('de-DE', localeOptions);
+        if (this._dateDisplay) {
+          this._dateDisplay.textContent = new Date().toLocaleDateString('de-DE', localeOptions);
+        }
         this._lastMin = time.getMinutes();
     }
 
     if (force || this._lastSecond !== seconds) {
         if (this._lastSecond !== -1 && this._ticks[this._lastSecond]) {
-            this._ticks[this._lastSecond].classList.remove('active-tick');
+            this._ticks[this._lastSecond]?.classList.remove('active-tick');
         }
         if (this._ticks[seconds]) {
-            this._ticks[seconds].classList.add('active-tick');
+            this._ticks[seconds]?.classList.add('active-tick');
         }
         this._lastSecond = seconds;
     }
@@ -379,11 +407,15 @@ class SquircleClockCard extends HTMLElement {
 
 // --- EDITOR (NATIVE) ---
 class SquircleClockEditor extends HTMLElement {
-  setConfig(config) {
+  private _config!: SquircleClockCardConfig;
+  private _hass?: HomeAssistant;
+  private _form?: any;
+
+  setConfig(config: SquircleClockCardConfig) {
     this._config = config;
   }
 
-  set hass(hass) {
+  set hass(hass: HomeAssistant) {
     this._hass = hass;
     // WICHTIG: Hass an das Formular weitergeben, sobald verfügbar
     if (this._form) {
@@ -399,8 +431,8 @@ class SquircleClockEditor extends HTMLElement {
     if (!this._form) {
       this._form = document.createElement("ha-form");
       this._form.schema = CARD_SCHEMA;
-      this._form.computeLabel = (schema) => schema.label || schema.name;
-      this._form.addEventListener("value-changed", (ev) => this._valueChanged(ev));
+      this._form.computeLabel = (schema: SchemaItem) => schema.label || schema.name;
+      this._form.addEventListener("value-changed", (ev: Event) => this._valueChanged(ev as CustomEvent));
       this.appendChild(this._form);
     }
     this._form.data = this._config;
@@ -408,7 +440,7 @@ class SquircleClockEditor extends HTMLElement {
     if(this._hass) this._form.hass = this._hass;
   }
 
-  _valueChanged(ev) {
+  _valueChanged(ev: CustomEvent) {
     const newConfig = { ...this._config, ...ev.detail.value };
     const event = new CustomEvent("config-changed", {
       detail: { config: newConfig },
@@ -421,6 +453,17 @@ class SquircleClockEditor extends HTMLElement {
 
 customElements.define('squircle-clock-card', SquircleClockCard);
 customElements.define('squircle-clock-editor', SquircleClockEditor);
+
+declare global {
+  interface Window {
+    customCards: Array<{
+      type: string;
+      name: string;
+      preview?: boolean;
+      description?: string;
+    }>;
+  }
+}
 
 window.customCards = window.customCards || [];
 window.customCards.push({

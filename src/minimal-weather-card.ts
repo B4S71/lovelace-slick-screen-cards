@@ -1,4 +1,10 @@
-import { LitElement, html, svg, css } from "https://unpkg.com/lit-element@2.4.0/lit-element.js?module";
+import { LitElement, html, css } from 'lit';
+import type {
+  HomeAssistant,
+  MiniWeatherCardConfig,
+  ForecastData,
+  HistoryDataPoint,
+} from './types';
 
 const CARD_VERSION = "8.0.0";
 
@@ -11,12 +17,11 @@ console.info(
 // ----------------------------------------------------------------------
 // CATMULL-ROM SPLINE LOGIK
 // ----------------------------------------------------------------------
-function catmullRom2bezier(x, k) {
+function catmullRom2bezier(x: number[], k: number): number[][] {
   const n = x.length - 1;
   if (n < 1) return [];
-  const result = [];
-  let x1 = x[0], y1 = x[1];
-  let x2 = x[2], y2 = x[3];
+  const result: number[][] = [];
+  const x1 = x[0], y1 = x[1];
   result.push([x1, y1]);
 
   for (let i = 0; i < n - 1; i++) {
@@ -35,9 +40,9 @@ function catmullRom2bezier(x, k) {
   return result;
 }
 
-function generateSmoothPath(points, width, height) {
+function generateSmoothPath(points: number[][]): string {
   if (points.length < 2) return "";
-  const flatPoints = points.reduce((acc, p) => [...acc, p[0], p[1]], []);
+  const flatPoints = points.reduce((acc, p) => [...acc, p[0], p[1]], [] as number[]);
   const curves = catmullRom2bezier(flatPoints, 1); 
   if (curves.length === 0) return "";
 
@@ -52,7 +57,9 @@ function generateSmoothPath(points, width, height) {
 // ----------------------------------------------------------------------
 // TAGESZEIT & FARBVERLÄUFE (basierend auf Sonnenstand)
 // ----------------------------------------------------------------------
-function getTimeOfDayFromSun(elevation, rising) {
+type TimeOfDay = 'night' | 'early-dawn' | 'late-dawn' | 'morning' | 'noon' | 'early-afternoon' | 'late-afternoon' | 'early-dusk' | 'late-dusk';
+
+function getTimeOfDayFromSun(elevation: number, rising: boolean): TimeOfDay {
   // Nacht: Sonne tief unter Horizont
   if (elevation < -18) return 'night';
   
@@ -81,13 +88,18 @@ function getTimeOfDayFromSun(elevation, rising) {
   return 'noon';
 }
 
-function isBadWeather(condition) {
+function isBadWeather(condition: string): boolean {
   const badConditions = ['rainy', 'pouring', 'lightning', 'snowy', 'hail', 'fog'];
   return badConditions.includes(condition);
 }
 
-function getGradients(timeOfDay, isBad) {
-  const gradients = {
+interface Gradients {
+  bright: string;
+  dark: string;
+}
+
+function getGradients(timeOfDay: TimeOfDay, isBad: boolean): Gradients {
+  const gradients: Record<string, Gradients> = {
     // SCHÖNWETTER
     'night-good': {
       bright: 'linear-gradient(180deg, #0f2027 0%, #203a43 50%, #2c5364 100%)',
@@ -169,11 +181,19 @@ function getGradients(timeOfDay, isBad) {
   return gradients[key] || gradients['noon-good'];
 }
 
-
 // ----------------------------------------------------------------------
 // HAUPT KARTE
 // ----------------------------------------------------------------------
 class MiniWeatherCard extends LitElement {
+  hass!: HomeAssistant;
+  config!: MiniWeatherCardConfig;
+  _forecast: ForecastData[] | null = null;
+  _historyData: HistoryDataPoint[] = [];
+  _cardHeight: number = 200;
+  _cardWidth: number = 300;
+  _resizeObserver!: ResizeObserver;
+  _unsub?: () => void;
+  _historyTimeout?: number;
   
   static get properties() {
     return {
@@ -207,7 +227,7 @@ class MiniWeatherCard extends LitElement {
 
   connectedCallback() {
     super.connectedCallback();
-    this._resizeObserver.observe(this);
+    this._resizeObserver.observe(this as unknown as Element);
     if (this.hass && this.config) {
       this._subscribeForecast();
       this._updateHistory();
@@ -220,25 +240,25 @@ class MiniWeatherCard extends LitElement {
     this._unsubscribeForecast();
   }
 
-  setConfig(config) {
+  setConfig(config: MiniWeatherCardConfig) {
     this.config = {
       title: "Wetter",
       mode: "daily",
-      temp_sensor: null,
-      history_entity: null,
+      temp_sensor: undefined,
+      history_entity: undefined,
       sun_entity: "sun.sun",
       sampling_size: 50,
-      history_hours: 24, // Standard: 24h
+      history_hours: 24,
       ...config
     };
   }
 
-  updated(changedProps) {
+  updated(changedProps: Map<string, any>) {
     super.updated(changedProps);
     if (changedProps.has('config') || changedProps.has('hass')) {
       if (!this._unsub && this.config.entity) this._subscribeForecast();
       if (this._historyTimeout) clearTimeout(this._historyTimeout);
-      this._historyTimeout = setTimeout(() => this._updateHistory(), 10000);
+      this._historyTimeout = window.setTimeout(() => this._updateHistory(), 10000);
     }
   }
 
@@ -256,22 +276,21 @@ class MiniWeatherCard extends LitElement {
 
     try {
         this._unsub = await this.hass.connection.subscribeMessage(
-            (event) => { if (event && event.forecast) { this._forecast = event.forecast; this.requestUpdate(); } },
+            (event: any) => { if (event && event.forecast) { this._forecast = event.forecast; this.requestUpdate(); } },
             { type: "weather/subscribe_forecast", forecast_type: this.config.mode || 'daily', entity_id: entityId }
         );
     } catch (err) { console.error("MiniWeatherCard: Subscription failed", err); }
   }
 
   _unsubscribeForecast() {
-    if (this._unsub) { this._unsub().then(() => {}).catch(() => {}); this._unsub = undefined; }
+    if (this._unsub) { this._unsub(); this._unsub = undefined; }
   }
 
   async _updateHistory() {
     if (!this.hass || !this.config.history_entity) { this._historyData = []; return; }
     
     const entityId = this.config.history_entity;
-    // Konfigurierbare Stunden auslesen
-    const hoursBack = parseInt(this.config.history_hours) || 24;
+    const hoursBack = parseInt(String(this.config.history_hours)) || 24;
     
     const endTime = new Date();
     const startTime = new Date(endTime.getTime() - hoursBack * 60 * 60 * 1000);
@@ -281,11 +300,11 @@ class MiniWeatherCard extends LitElement {
     const entityStr = encodeURIComponent(entityId);
 
     try {
-        const history = await this.hass.callApi("GET", `history/period/${startStr}?filter_entity_id=${entityStr}&end_time=${endStr}&minimal_response`);
+        const history = await this.hass.callApi<any[][]>("GET", `history/period/${startStr}?filter_entity_id=${entityStr}&end_time=${endStr}&minimal_response`);
         if (history && history.length > 0 && history[0].length > 0) {
-            const rawData = history[0]
-                .map(pt => ({ time: new Date(pt.last_changed).getTime(), state: parseFloat(pt.state) }))
-                .filter(pt => !isNaN(pt.state));
+            const rawData: HistoryDataPoint[] = history[0]
+                .map((pt: any) => ({ time: new Date(pt.last_changed).getTime(), state: parseFloat(pt.state) }))
+                .filter((pt: HistoryDataPoint) => !isNaN(pt.state));
             
             const targetPoints = this.config.sampling_size || 50;
             if (rawData.length > targetPoints) {
@@ -311,8 +330,8 @@ class MiniWeatherCard extends LitElement {
 
     let minVal = data[0].state;
     let maxVal = data[0].state;
-    let minTime = data[0].time;
-    let maxTime = data[data.length - 1].time;
+    const minTime = data[0].time;
+    const maxTime = data[data.length - 1].time;
 
     data.forEach(pt => {
         if (pt.state < minVal) minVal = pt.state;
@@ -331,7 +350,7 @@ class MiniWeatherCard extends LitElement {
         return [x, y];
     });
 
-    const linePath = generateSmoothPath(points, width, height);
+    const linePath = generateSmoothPath(points);
     if (!linePath) return null;
 
     return {
@@ -347,10 +366,10 @@ class MiniWeatherCard extends LitElement {
     const stateObj = this.hass.states[this.config.entity];
     if (!stateObj) return html`<ha-card style="padding:16px;">Entität fehlt</ha-card>`;
 
-    let currentTemp = stateObj.attributes.temperature;
+    let currentTemp: number | string = stateObj.attributes.temperature;
     if (this.config.temp_sensor) {
         const sensorState = this.hass.states[this.config.temp_sensor];
-        if (sensorState && !isNaN(sensorState.state)) currentTemp = sensorState.state;
+        if (sensorState && !isNaN(parseFloat(sensorState.state))) currentTemp = sensorState.state;
     }
 
     const FIXED_HEIGHT = 162; const ROW_HEIGHT = 32;
@@ -360,7 +379,7 @@ class MiniWeatherCard extends LitElement {
     const forecast = this._forecast ? this._forecast.slice(0, maxRows) : [];
     
     const isHourly = this.config.mode === 'hourly';
-    let headerLabel = html`&nbsp;`;
+    let headerLabel: any = html`&nbsp;`;
     const fullForecast = this._forecast || [];
     if (fullForecast.length > 0) {
         const today = fullForecast[0];
@@ -399,7 +418,7 @@ class MiniWeatherCard extends LitElement {
 
         <div class="container content-layer">
             <div class="header">
-                <div class="temp-big">${currentTemp !== undefined ? Math.round(currentTemp) + "°" : "--"}</div>
+                <div class="temp-big">${currentTemp !== undefined ? Math.round(Number(currentTemp)) + "°" : "--"}</div>
                 <div class="header-right">
                     <ha-icon icon="${this._getIcon(stateObj.state)}" class="main-icon"></ha-icon>
                     <div class="hl-label">${headerLabel}</div>
@@ -408,7 +427,7 @@ class MiniWeatherCard extends LitElement {
 
             ${showForecast ? html`
                 <div class="forecast-list">
-                    ${forecast.map(day => this._renderRow(day))}
+                    ${forecast.map((day: ForecastData) => this._renderRow(day))}
                     ${fullForecast.length === 0 ? html`<div class="loading">Lade...</div>` : ''}
                 </div>
             ` : html`<div style="flex:1;"></div>`} 
@@ -419,20 +438,20 @@ class MiniWeatherCard extends LitElement {
     `;
   }
 
-  _renderRow(day) {
+  _renderRow(day: ForecastData) {
     const date = new Date(day.datetime);
     const isHourly = this.config.mode === 'hourly';
-    let label = isHourly ? date.toLocaleTimeString(this.hass.language, { hour: '2-digit', minute: '2-digit' }) : date.toLocaleDateString(this.hass.language, { weekday: 'short' });
+    const label = isHourly ? date.toLocaleTimeString(this.hass.language, { hour: '2-digit', minute: '2-digit' }) : date.toLocaleDateString(this.hass.language, { weekday: 'short' });
     const temp = day.temperature ?? day.temp_max;
     const low = day.templow ?? day.temp_min;
 
-    if (isHourly) return html`<div class="row hourly"><div class="day-name">${label}</div><div class="icon-small"><ha-icon icon="${this._getIcon(day.condition)}"></ha-icon></div><div class="temp-single">${Math.round(temp)}°</div></div>`;
+    if (isHourly && temp !== undefined) return html`<div class="row hourly"><div class="day-name">${label}</div><div class="icon-small"><ha-icon icon="${this._getIcon(day.condition)}"></ha-icon></div><div class="temp-single">${Math.round(temp)}°</div></div>`;
     else if (low !== undefined && temp !== undefined) return html`<div class="row"><div class="day-name">${label}</div><div class="icon-small"><ha-icon icon="${this._getIcon(day.condition)}"></ha-icon></div><div class="bars"><span class="val-low">${Math.round(low)}°</span><div class="bar-track"><div class="bar-fill"></div></div><span class="val-high">${Math.round(temp)}°</span></div></div>`;
     return html``;
   }
 
-  _getIcon(condition) {
-    const map = { 'sunny': 'mdi:weather-sunny', 'clear-night': 'mdi:weather-night', 'partlycloudy': 'mdi:weather-partly-cloudy', 'cloudy': 'mdi:cloud', 'rainy': 'mdi:weather-rainy', 'pouring': 'mdi:weather-pouring', 'fog': 'mdi:weather-fog', 'hail': 'mdi:weather-hail', 'snowy': 'mdi:weather-snowy', 'lightning': 'mdi:weather-lightning' };
+  _getIcon(condition: string): string {
+    const map: Record<string, string> = { 'sunny': 'mdi:weather-sunny', 'clear-night': 'mdi:weather-night', 'partlycloudy': 'mdi:weather-partly-cloudy', 'cloudy': 'mdi:cloud', 'rainy': 'mdi:weather-rainy', 'pouring': 'mdi:weather-pouring', 'fog': 'mdi:weather-fog', 'hail': 'mdi:weather-hail', 'snowy': 'mdi:weather-snowy', 'lightning': 'mdi:weather-lightning' };
     return map[condition] || 'mdi:weather-cloudy';
   }
 
@@ -445,7 +464,7 @@ class MiniWeatherCard extends LitElement {
     }
   }
 
-  _getCurrentGradients() {
+  _getCurrentGradients(): Gradients {
     if (!this.hass || !this.config || !this.config.entity) {
       return { bright: 'linear-gradient(180deg, #2c3e50 0%, #151a1e 100%)', dark: 'linear-gradient(180deg, #243342 0%, #0a0a0a 100%)' };
     }
@@ -455,10 +474,9 @@ class MiniWeatherCard extends LitElement {
       return { bright: 'linear-gradient(180deg, #2c3e50 0%, #151a1e 100%)', dark: 'linear-gradient(180deg, #243342 0%, #0a0a0a 100%)' };
     }
 
-    // Konfigurierten Sonnen-Sensor verwenden (Fallback auf sun.sun)
     const sunEntityId = this.config.sun_entity || 'sun.sun';
     const sunEntity = this.hass.states[sunEntityId];
-    let timeOfDay = 'noon'; // Fallback
+    let timeOfDay: TimeOfDay = 'noon';
     
     if (sunEntity && sunEntity.attributes) {
       const elevation = sunEntity.attributes.elevation || 0;
@@ -512,9 +530,12 @@ class MiniWeatherCard extends LitElement {
 customElements.define("mini-weather-card", MiniWeatherCard);
 
 class MiniWeatherCardEditor extends LitElement {
+  hass!: HomeAssistant;
+  _config!: MiniWeatherCardConfig;
+  
   static get properties() { return { hass: {}, _config: {} }; }
-  setConfig(config) { this._config = config; }
-  _valueChanged(ev) { const newConfig = ev.detail.value; const event = new CustomEvent("config-changed", { detail: { config: newConfig }, bubbles: true, composed: true, }); this.dispatchEvent(event); }
+  setConfig(config: MiniWeatherCardConfig) { this._config = config; }
+  _valueChanged(ev: CustomEvent) { const newConfig = ev.detail.value; const event = new CustomEvent("config-changed", { detail: { config: newConfig }, bubbles: true, composed: true, }); this.dispatchEvent(event); }
   render() { 
     if (!this.hass || !this._config) return html``;
     const schema = [
@@ -524,7 +545,6 @@ class MiniWeatherCardEditor extends LitElement {
       { name: "history_entity", label: "Verlauf (Hintergrund)", selector: { entity: { domain: "sensor" } } },
       { name: "sun_entity", label: "Sonnen-Sensor", selector: { entity: { domain: "sun" } } },
       
-      // NEU: Auswahl des Zeitraums
       { 
         name: "history_hours", 
         label: "Verlauf Zeitraum", 
@@ -546,10 +566,21 @@ class MiniWeatherCardEditor extends LitElement {
       { name: "sampling_size", label: "Glättung (Punkte)", selector: { number: { min: 5, max: 200, mode: "slider" } } },
       { name: "mode", label: "Modus", selector: { select: { options: [ { value: "daily", label: "Täglich" }, { value: "hourly", label: "Stündlich" } ] } } }
     ];
-    return html`<ha-form .hass=${this.hass} .data=${this._config} .schema=${schema} .computeLabel=${(s) => s.label} @value-changed=${this._valueChanged}></ha-form>`; 
+    return html`<ha-form .hass=${this.hass} .data=${this._config} .schema=${schema} .computeLabel=${(s: any) => s.label} @value-changed=${this._valueChanged}></ha-form>`; 
   }
 }
 customElements.define("mini-weather-card-editor", MiniWeatherCardEditor);
+
+declare global {
+  interface Window {
+    customCards: Array<{
+      type: string;
+      name: string;
+      preview?: boolean;
+      description?: string;
+    }>;
+  }
+}
 
 window.customCards = window.customCards || [];
 window.customCards.push({ type: "mini-weather-card", name: "Apple Style Weather", preview: true, description: "Apple Style Wetter Karte", });
