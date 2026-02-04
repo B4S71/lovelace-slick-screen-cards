@@ -21,6 +21,17 @@ export interface HomeAssistant {
   user: any;
 }
 
+declare global {
+  interface Window {
+    customCards: Array<{
+      type: string;
+      name: string;
+      description: string;
+      preview?: boolean;
+    }>;
+  }
+}
+
 export interface HassEntity {
   entity_id: string;
   state: string;
@@ -40,7 +51,7 @@ export interface LovelaceCardConfig {
 }
 
 export interface WindCompassCardConfig extends LovelaceCardConfig {
-  type: 'custom:wind-compass-card';
+  type: 'custom:slick-wind-compass-card';
   direction_entity: string;
   instant_direction_entity?: string;
   speed_entity: string;
@@ -68,7 +79,7 @@ export interface BucketData {
 
 // Mini Weather Card Types
 export interface MiniWeatherCardConfig extends LovelaceCardConfig {
-  type: 'custom:mini-weather-card';
+  type: 'custom:slick-minimal-weather-card';
   entity: string;
   title?: string;
   mode?: 'daily' | 'hourly';
@@ -95,27 +106,16 @@ export interface HistoryDataPoint {
 
 // Squircle Clock Card Types
 export interface SquircleClockCardConfig extends LovelaceCardConfig {
-  type: 'custom:squircle-clock-card';
+  type: 'custom:slick-squircle-clock-card';
   display_mode?: 'analog' | 'digital';
   font_style?: 'standard' | 'thin' | 'retro';
   timezone?: string;
   timezone_entity?: string;
 }
 
-// Heating/Cooling Card Types
-export interface HeatingCoolingCardConfig extends LovelaceCardConfig {
-  type: 'custom:heating-cooling-card';
-  entity: string;
-  title?: string;
-  min_temp?: number;
-  max_temp?: number;
-  unit?: string;
-  simple_mode?: boolean;
-}
-
 // Simple Climate Card Types
 export interface SimpleClimateCardConfig extends LovelaceCardConfig {
-  type: 'custom:simple-climate-card';
+  type: 'custom:slick-simple-climate-card';
   entity: string;
   name?: string;
   sensors?: {
@@ -123,4 +123,30 @@ export interface SimpleClimateCardConfig extends LovelaceCardConfig {
     target_high?: string; // override target high
     target_low?: string;  // override target low
   };
+}
+
+// Energy Flow Card Types
+export interface EnergyFlowCardConfig extends LovelaceCardConfig {
+  type: 'custom:slick-energy-flow-card';
+  title?: string;
+  grid_entity?: string;
+  grid_import_entity?: string; // Optional separate
+  grid_export_entity?: string; // Optional separate
+  solar_entity?: string;
+  battery_entity?: string;
+  battery_soc_entity?: string;
+  home_entity?: string;
+  autarky_entity?: string;     // New
+  self_consumption_entity?: string; // New
+  inverted_grid?: boolean;   // true = negative is import
+  inverted_battery?: boolean; // true = negative is charge
+}
+
+// Person Card Types
+export interface PersonCardConfig extends LovelaceCardConfig {
+  type: 'custom:slick-person-card';
+  people?: string[];
+  entity?: string;
+  layout?: 'wrap' | 'horizontal';
+  size?: number;
 }

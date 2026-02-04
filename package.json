@@ -1,8 +1,8 @@
 {
   "name": "lovelace-slick-screen-cards",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Collection of professional custom cards for Home Assistant",
-  "main": "dist/wind-compass-card.js",
+  "main": "dist/slick-screen-cards.js",
   "scripts": {
     "build": "rollup -c && cp dist/slick-screen-cards.js slick-screen-cards.js",
     "watch": "rollup -c --watch",

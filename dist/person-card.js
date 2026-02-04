@@ -25,12 +25,12 @@ const t=globalThis,i$1=t=>t,s$1=t.trustedTypes,e=s$1?s$1.createPolicy("lit-html"
  */const s=globalThis;class i extends y$1{constructor(){super(...arguments),this.renderOptions={host:this},this._$Do=void 0;}createRenderRoot(){const t=super.createRenderRoot();return this.renderOptions.renderBefore??=t.firstChild,t}update(t){const r=this.render();this.hasUpdated||(this.renderOptions.isConnected=this.isConnected),super.update(t),this._$Do=D(r,this.renderRoot,this.renderOptions);}connectedCallback(){super.connectedCallback(),this._$Do?.setConnected(true);}disconnectedCallback(){super.disconnectedCallback(),this._$Do?.setConnected(false);}render(){return E}}i._$litElement$=true,i["finalized"]=true,s.litElementHydrateSupport?.({LitElement:i});const o=s.litElementPolyfillSupport;o?.({LitElement:i});(s.litElementVersions??=[]).push("4.2.2");
 
 /**
- * Simple Climate Card
+ * Person Card
  * @version 0.1.0
  */
 const CARD_VERSION = "0.1.0";
-console.info(`%c SIMPLE-CLIMATE-CARD %c ${CARD_VERSION} `, 'color: white; background: #ff9800; font-weight: 700;', 'color: #ff9800; background: white; font-weight: 700;');
-class SimpleClimateCard extends i {
+console.info(`%c PERSON-CARD %c ${CARD_VERSION} `, 'color: white; background: #9c27b0; font-weight: 700;', 'color: #9c27b0; background: white; font-weight: 700;');
+class PersonCard extends i {
     static get properties() {
         return {
             hass: { attribute: false },
@@ -38,425 +38,294 @@ class SimpleClimateCard extends i {
         };
     }
     static getConfigElement() {
-        return document.createElement("slick-simple-climate-card-editor");
+        return document.createElement("slick-person-card-editor");
     }
-    static getStubConfig() {
+    static getStubConfig(hass) {
+        // Collect all person entities
+        let people = [];
+        if (hass && hass.states) {
+            people = Object.keys(hass.states).filter(eid => eid.startsWith('person.'));
+        }
         return {
-            type: "custom:slick-simple-climate-card",
-            entity: "",
-            name: "Climate",
+            type: "custom:slick-person-card",
+            people: people,
+            size: 100,
+            layout: "wrap"
         };
+    }
+    constructor() {
+        super();
+        // Debug logging for instantiation
+        console.info("DEBUG: PersonCard constructor called!");
+    }
+    getCardSize() {
+        if (!this.config || !this.config.people)
+            return 1;
+        return Math.ceil(this.config.people.length / 4);
     }
     setConfig(config) {
         if (!config)
             throw new Error("Invalid configuration");
-        this.config = { name: "Climate", ...config };
-        if (this.config.name && typeof this.config.name !== 'string')
-            throw new Error("name must be a string");
-        if (this.config.sensors && typeof this.config.sensors !== 'object')
-            throw new Error("sensors must be an object");
-    }
-    _interpolateColor(c1, c2, factor) {
-        const hex = (c) => {
-            const h = c.replace('#', '');
-            return parseInt(h, 16);
+        // Treat config as immutable: create a copy
+        const newConfig = {
+            size: 100,
+            layout: "wrap",
+            ...config
         };
-        const r1 = (hex(c1) >> 16) & 255;
-        const g1 = (hex(c1) >> 8) & 255;
-        const b1 = (hex(c1)) & 255;
-        const r2 = (hex(c2) >> 16) & 255;
-        const g2 = (hex(c2) >> 8) & 255;
-        const b2 = (hex(c2)) & 255;
-        const r = Math.round(r1 + (r2 - r1) * factor);
-        const g = Math.round(g1 + (g2 - g1) * factor);
-        const b = Math.round(b1 + (b2 - b1) * factor);
-        return `rgb(${r}, ${g}, ${b})`;
+        // Migrate 'entity' to 'people' for badge/single compatibility
+        if (newConfig.entity && (!newConfig.people || newConfig.people.length === 0)) {
+            newConfig.people = [newConfig.entity];
+        }
+        // Validation
+        if (newConfig.size && typeof newConfig.size !== 'number')
+            throw new Error("size must be a number");
+        if (newConfig.layout && !['wrap', 'horizontal'].includes(newConfig.layout))
+            throw new Error("layout must be wrap or horizontal");
+        this.config = newConfig;
     }
-    _getGradient(stateObj, currentTemp, targetLow, targetHigh) {
-        const hvacAction = stateObj.attributes.hvac_action || stateObj.state;
-        // Common colors
-        const cGrey = '#607d8b';
-        const cDarkGrey = '#455a64';
-        const cOrange = '#ff9800';
-        const cOrangeDark = '#e65100'; // Darker orange for full heat depth
-        const cGreen = '#4caf50';
-        const cBlue = '#2196f3';
-        const cBlueDark = '#0d47a1'; // Darker blue for full cool depth
-        // Safety check
-        if (isNaN(currentTemp))
-            return `linear-gradient(180deg, ${cGrey}, ${cDarkGrey})`;
-        // Difference required for full color intensity
-        const maxDelta = 3;
-        // heating, but below target temperature: bottom orange, top grey
-        if (hvacAction === 'heating') {
-            // If we only have single target, targetLow is the target
-            if (currentTemp < targetLow) {
-                const delta = targetLow - currentTemp;
-                const intensity = delta / maxDelta >= 1 ? 1 : delta / maxDelta;
-                // INTERPOLATE TOP COLOR: Grey -> Orange
-                // Ensures no "Grey Bar" at the top when intensity is high (near 3deg).
-                // Modulate from Grey to Orange starting at 40% intensity to keep contrast for small deltas.
-                let topFactor = 0;
-                if (intensity > 0.4) {
-                    topFactor = (intensity - 0.4) / 0.6; // 0..1
-                }
-                const topColor = this._interpolateColor(cGrey, cOrange, topFactor);
-                // INTERPOLATE BOTTOM COLOR: Orange -> OrangeDark
-                // Adds depth at high intensity so it's not flat
-                const bottomColor = this._interpolateColor(cOrange, cOrangeDark, intensity);
-                // HINT POSITION: Controls the "weight" of the gradient.
-                // Intensity 0 (0deg) -> 90% (Transition happens at bottom, mostly Top Color/Grey)
-                // Intensity 1 (3deg) -> 20% (Transition happens at top, mostly Bottom Color/Orange)
-                const hint = 90 - (intensity * 70);
-                return `linear-gradient(180deg, ${topColor} 0%, ${hint}%, ${bottomColor} 100%)`;
-            }
-            // heating, but already >= target OR in range
-            // Just a pleasant green-orange mix
-            return `linear-gradient(180deg, ${cGreen}, 80%, ${cOrange})`;
-        }
-        // cooling
-        if (hvacAction === 'cooling') {
-            // cooling, but over target temperature: top blue, bottom grey
-            if (currentTemp > targetHigh) {
-                const delta = currentTemp - targetHigh;
-                const intensity = delta / maxDelta >= 1 ? 1 : delta / maxDelta;
-                // INTERPOLATE TARGET BLUE: Blue -> BlueDark
-                // As intensity rises, the "Blue" end becomes darker for depth.
-                const targetBlue = this._interpolateColor(cBlue, cBlueDark, intensity);
-                // INTERPOLATE BOTTOM COLOR: Grey -> TargetBlue
-                // Ensures no "Grey Bar" at the bottom when intensity is high.
-                let botFactor = 0;
-                if (intensity > 0.4) {
-                    botFactor = (intensity - 0.4) / 0.6;
-                }
-                const botColor = this._interpolateColor(cGrey, targetBlue, botFactor);
-                // HINT POSITION:
-                // Intensity 0 (0deg) -> 10% (Transition happens at top, mostly Bottom Color/Grey)
-                // Intensity 1 (3deg) -> 80% (Transition happens at bottom, mostly Top Color/Blue)
-                const hint = 10 + (intensity * 70);
-                return `linear-gradient(180deg, ${cBlue} 0%, ${hint}%, ${botColor} 100%)`;
-            }
-            // cooling, and already <= target
-            return `linear-gradient(180deg, ${cBlue}, 20%, ${cGreen})`;
-        }
-        // idle
-        if (hvacAction === 'idle') {
-            // idle, and in optimal temperature range: greenish gradient
-            return `linear-gradient(180deg, ${cGreen} 0%, ${'#81c784'} 100%)`;
-        }
-        // off
-        if (stateObj.state === 'off') {
-            return `linear-gradient(180deg, ${cGrey} 0%, ${cDarkGrey} 100%)`;
-        }
-        // Fallback (maybe fan_only or dry) - Neutral
-        return `linear-gradient(180deg, ${cGrey} 0%, ${cDarkGrey} 100%)`;
+    _formatDuration(lastChanged) {
+        const start = new Date(lastChanged).getTime();
+        const now = Date.now();
+        const diff = Math.floor((now - start) / 1000); // seconds
+        if (diff < 60)
+            return `${diff}s`;
+        const minutes = Math.floor(diff / 60);
+        if (minutes < 60)
+            return `${minutes}m`;
+        const hours = Math.floor(minutes / 60);
+        if (hours < 24)
+            return `${hours}h`;
+        const days = Math.floor(hours / 24);
+        return `${days}d`;
     }
     render() {
-        var _a, _b, _c;
-        // If config is missing, we can't do anything
-        if (!this.config)
+        if (!this.config) {
             return b ``;
-        // If hass is missing, we render a placeholder explicitly or return
-        // But typically user wants to see the card structure.
+        }
+        // If hass missing, render empty container to avoid crash but show something if inspected
         if (!this.hass) {
-            return b `<ha-card style="padding:16px;">Loading...</ha-card>`;
+            return b `<ha-card style="padding: 10px;">Loading persons...</ha-card>`;
         }
-        const entityId = this.config.entity;
-        let stateObj = this.hass.states[entityId];
-        if (!stateObj) {
-            stateObj = {
-                entity_id: entityId,
-                state: 'unavailable',
-                attributes: { friendly_name: this.config.name || entityId },
-            };
-        }
-        // 1. Determine Temperatures
-        let currentTemp = stateObj.attributes.current_temperature;
-        // Config override
-        if (((_a = this.config.sensors) === null || _a === void 0 ? void 0 : _a.temp) && this.hass.states[this.config.sensors.temp]) {
-            const s = this.hass.states[this.config.sensors.temp];
-            if (!isNaN(parseFloat(s.state)))
-                currentTemp = parseFloat(s.state);
-        }
-        // Targets
-        // Try to find High/Low. If single point 'temperature', assign to both or logic depends on mode?
-        // If mode is 'heat', target is low. If mode is 'cool', target is high.
-        // If 'heat_cool', we have both.
-        let targetLow = stateObj.attributes.target_temp_low;
-        let targetHigh = stateObj.attributes.target_temp_high;
-        const singleTarget = stateObj.attributes.temperature;
-        if (targetLow === undefined && singleTarget !== undefined)
-            targetLow = singleTarget;
-        if (targetHigh === undefined && singleTarget !== undefined)
-            targetHigh = singleTarget;
-        // Defaults if completely missing
-        if (targetLow === undefined)
-            targetLow = 20;
-        if (targetHigh === undefined)
-            targetHigh = 24;
-        // Sensor overrides
-        if (((_b = this.config.sensors) === null || _b === void 0 ? void 0 : _b.target_low) && this.hass.states[this.config.sensors.target_low]) {
-            targetLow = parseFloat(this.hass.states[this.config.sensors.target_low].state);
-        }
-        if (((_c = this.config.sensors) === null || _c === void 0 ? void 0 : _c.target_high) && this.hass.states[this.config.sensors.target_high]) {
-            targetHigh = parseFloat(this.hass.states[this.config.sensors.target_high].state);
-        }
-        const gradient = this._getGradient(stateObj, currentTemp, targetLow, targetHigh);
-        // Labels
-        const name = this.config.name || stateObj.attributes.friendly_name || 'Climate';
-        const stateLabel = stateObj.attributes.hvac_action
-            ? this.hass.localize(`state_attributes.climate.hvac_action.${stateObj.attributes.hvac_action}`)
-            : this.hass.localize(`component.climate.state._.${stateObj.state}`) || stateObj.state;
-        // Main Icon Logic
-        let icon = 'mdi:thermostat';
-        const action = stateObj.attributes.hvac_action || stateObj.state;
-        if (action === 'heating')
-            icon = 'mdi:fire';
-        else if (action === 'cooling')
-            icon = 'mdi:snowflake';
-        else if (action === 'idle')
-            icon = 'mdi:check-circle-outline';
-        else if (action === 'off')
-            icon = 'mdi:power-off';
-        return b `
-      <ha-card @click="${this._openMoreInfo}">
-        <div class="bg-layer" style="background: ${gradient};"></div>
-        
-        <div class="container">
-          <div class="header">
-             <div class="temp-big">
-                ${currentTemp !== undefined ? b `${currentTemp}<span class="unit">°</span>` : '--'}
-             </div>
-             <div class="header-right">
-                <ha-icon icon="${icon}" class="main-icon"></ha-icon>
-                <div class="state-label">${stateLabel}</div>
-             </div>
-          </div>
-
-          <div class="spacer"></div>
-
-          <div class="footer-row">
-             <div class="footer-info">
-               <div class="name">${name}</div>
-             </div>
-             <div class="targets">
-                ${this._renderTargets(stateObj, targetLow, targetHigh)}
-             </div>
-          </div>
-        </div>
-      </ha-card>
+        const size = this.config.size || 100;
+        const isHorizontal = this.config.layout === 'horizontal';
+        const showInfo = size >= 50;
+        // Ensure people list exists
+        const people = this.config.people || [];
+        const cardStyle = `
+      width: ${size}px;
+      height: ${size}px;
+      font-size: ${size / 100}em;
     `;
-    }
-    _renderTargets(stateObj, low, high) {
-        var _a;
-        const mode = stateObj.state;
-        // If off, show nothing or just "Off"
-        if (mode === 'off')
-            return b `<div class="target-chip">OFF</div>`;
-        // heat_cool -> show both
-        // heat -> show low
-        // cool -> show high
-        // But hvac_modes might allow more.
-        // Simplification: If we have distinct low/high, show range. If same, show one.
-        if (low !== undefined && high !== undefined && low !== high) {
+        return b `
+      <div class="person-container ${isHorizontal ? 'horizontal' : ''}">
+        ${people.map(personId => {
+            const entity = this.hass.states[personId];
+            if (!entity)
+                return b `
+            <div class="person-card away" style="${cardStyle}; display: flex; align-items: center; justify-content: center; background-color: #555;">
+               <span style="font-size: 0.5em; text-align: center; color: white;">?</span>
+            </div>
+          `;
+            const isHome = entity.state === 'home';
+            const entityPicture = entity.attributes.entity_picture;
+            const location = entity.state;
+            const duration = this._formatDuration(entity.last_changed);
             return b `
-            <div class="target-group">
-               <div class="target-label">Min</div>
-               <div class="target-val">${low}°</div>
+            <div class="person-card ${isHome ? 'home' : 'away'}" 
+                 style="background-image: url('${entityPicture}'); ${cardStyle}">
+              ${showInfo ? b `
+              <div class="info">
+                <span class="location">${location}</span>
+                <span class="duration">${duration}</span>
+              </div>` : b ``}
             </div>
-            <div class="divider"></div>
-            <div class="target-group">
-               <div class="target-label">Max</div>
-               <div class="target-val">${high}°</div>
-            </div>
-         `;
-        }
-        // Single target
-        return b `
-        <div class="target-group">
-           <div class="target-label">Target</div>
-           <div class="target-val">${(_a = low !== null && low !== void 0 ? low : high) !== null && _a !== void 0 ? _a : '--'}°</div>
-        </div>
-     `;
-    }
-    _openMoreInfo() {
-        if (this.config.entity) {
-            const event = new CustomEvent("hass-more-info", {
-                detail: { entityId: this.config.entity },
-                bubbles: true,
-                composed: true,
-            });
-            this.dispatchEvent(event);
-        }
-    }
-    static get styles() {
-        return i$3 `
-      :host {
-        display: block;
-        height: 100%;
-      }
-      ha-card {
-        width: 100%;
-        height: 100%;
-        position: relative;
-        overflow: hidden;
-        border-radius: var(--ha-card-border-radius, 12px);
-        box-shadow: var(--ha-card-box-shadow, none);
-        cursor: pointer;
-        color: white;
-      }
-      .bg-layer {
-        position: absolute;
-        top: 0; left: 0; right: 0; bottom: 0;
-        z-index: 0;
-        transition: background 0.5s ease;
-      }
-      .container {
-        position: relative;
-        z-index: 1;
-        padding: 16px;
-        height: 100%;
-        box-sizing: border-box;
-        display: flex;
-        flex-direction: column;
-        justify-content: space-between; /* Header at top, Targets at bottom */
-      }
-      
-      .header {
-        display: flex;
-        justify-content: space-between;
-        align-items: flex-start;
-      }
-      
-      .temp-big {
-        font-size: 3.5rem;
-        font-weight: 200;
-        line-height: 1;
-        text-shadow: 0 1px 4px rgba(0,0,0,0.3);
-      }
-      .temp-big .unit {
-        font-size: 2rem;
-        vertical-align: top;
-        opacity: 0.8;
-      }
-      
-      .header-right {
-        text-align: right;
-        display: flex;
-        flex-direction: column;
-        align-items: flex-end;
-      }
-      .main-icon {
-        --mdc-icon-size: 32px;
-        filter: drop-shadow(0 1px 2px rgba(0,0,0,0.3));
-        margin-bottom: 4px;
-      }
-      .state-label {
-        font-size: 0.9rem;
-        font-weight: 500;
-        opacity: 0.9;
-        text-shadow: 0 1px 2px rgba(0,0,0,0.3);
-      }
-
-      .spacer {
-        flex: 1;
-      }
-
-      .footer-row {
-        display: flex;
-        justify-content: space-between;
-        align-items: flex-end;
-      }
-      
-      .name {
-        font-size: 1rem;
-        font-weight: 600;
-        text-shadow: 0 1px 2px rgba(0,0,0,0.3);
-        opacity: 0.9;
-      }
-
-      .targets {
-        display: flex;
-        align-items: center;
-        background: rgba(0,0,0,0.2);
-        border-radius: 20px;
-        padding: 4px 12px;
-        backdrop-filter: blur(4px);
-      }
-      .target-group {
-        display: flex;
-        flex-direction: column;
-        align-items: flex-end;
-      }
-      .target-label {
-        font-size: 0.65rem;
-        text-transform: uppercase;
-        opacity: 0.7;
-      }
-      .target-val {
-        font-size: 1.1rem;
-        font-weight: 600;
-      }
-      .divider {
-        width: 1px;
-        height: 24px;
-        background: rgba(255,255,255,0.3);
-        margin: 0 10px;
-      }
-      .target-chip {
-        font-weight: 600;
-        font-size: 0.9rem;
-      }
+          `;
+        })}
+      </div>
     `;
     }
 }
-// Register Custom Element
-if (!customElements.get("slick-simple-climate-card")) {
-    customElements.define("slick-simple-climate-card", SimpleClimateCard);
-    console.info("%c slick-simple-climate-card Registered", "color: green; font-weight: bold;");
+PersonCard.styles = i$3 `
+    :host {
+      display: inline-flex;
+      vertical-align: top;
+    }
+    .person-container {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      justify-content: flex-start;
+    }
+    .person-container.horizontal {
+      flex-wrap: nowrap;
+      overflow-x: auto;
+      padding-bottom: 4px; /* Space for scrollbar if visible */
+      scrollbar-width: none; /* Hide scrollbar Firefox */
+    }
+    .person-container.horizontal::-webkit-scrollbar { 
+      display: none; /* Hide scrollbar Chrome/Safari/Webkit */
+    }
+    
+    .person-card {
+      position: relative;
+      /* width & height set by inline style */
+      flex-shrink: 0;
+      border-radius: var(--ha-card-border-radius, 12px);
+      background-size: cover;
+      background-position: center;
+      background-repeat: no-repeat;
+      background-color: var(--secondary-background-color);
+      overflow: hidden;
+      box-shadow: var(--ha-card-box-shadow, none);
+      transition: filter 0.3s ease;
+    }
+    .person-card.away {
+      filter: grayscale(100%);
+    }
+    .person-card.home {
+      filter: grayscale(0%);
+    }
+    
+    .info {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      width: 100%;
+      padding: 4px;
+      box-sizing: border-box;
+      background: rgba(0, 0, 0, 0.4);
+      color: white;
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      backdrop-filter: blur(2px);
+    }
+
+    .location {
+      font-size: 0.8em;
+      font-weight: bold;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 100%;
+      text-transform: capitalize;
+    }
+
+    .duration {
+      font-size: 0.7em;
+      opacity: 0.9;
+    }
+  `;
+// Debug logging and Robust Registration
+console.info("DEBUG: Loading PersonCard module.");
+// Explicit global scope access
+const registry = window.customElements;
+const existingClass = registry.get('slick-person-card');
+try {
+    if (!existingClass) {
+        registry.define('slick-person-card', PersonCard);
+        console.info("%c slick-person-card Registered Successfully", "color: green; font-weight: bold;");
+    }
+    else {
+        console.info("slick-person-card already registered.");
+    }
 }
-class SimpleClimateCardEditor extends i {
-    static get properties() { return { hass: {}, _config: {} }; }
-    setConfig(config) { this._config = config; }
+catch (e) {
+    console.error("CRITICAL FAILURE: Failed to register slick-person-card", e);
+}
+// Global debug helper
+window.SlickPersonCard = PersonCard;
+class PersonCardEditor extends i {
+    static get properties() {
+        return {
+            hass: { attribute: false },
+            _config: { state: true },
+        };
+    }
+    setConfig(config) {
+        // Normalize config for editor
+        const newConfig = { ...config };
+        if (newConfig.entity && (!newConfig.people || newConfig.people.length === 0)) {
+            newConfig.people = [newConfig.entity];
+        }
+        this._config = newConfig;
+    }
     _valueChanged(ev) {
-        const newConfig = { ...this._config, ...ev.detail.value };
+        if (!this._config || !this.hass) {
+            return;
+        }
+        const value = ev.detail.value;
+        this._config = value;
         const event = new CustomEvent("config-changed", {
-            detail: { config: newConfig },
+            detail: { config: this._config },
             bubbles: true,
             composed: true,
         });
         this.dispatchEvent(event);
     }
     render() {
-        // Minimal editor
-        if (!this.hass || !this._config)
+        if (!this.hass || !this._config) {
             return b ``;
+        }
         const schema = [
-            { name: "entity", label: "Entity", selector: { entity: { domain: "climate" } } },
-            { name: "name", label: "Name", selector: { text: {} } }
+            {
+                name: "people",
+                label: "People",
+                selector: {
+                    entity: {
+                        domain: ["person", "device_tracker"],
+                        multiple: true
+                    }
+                }
+            },
+            {
+                name: "size",
+                label: "Card Size (px)",
+                selector: {
+                    number: {
+                        min: 50,
+                        max: 200,
+                        mode: "slider"
+                    }
+                }
+            },
+            {
+                name: "layout",
+                label: "Layout",
+                selector: {
+                    select: {
+                        mode: "dropdown",
+                        options: [
+                            { value: "wrap", label: "Wrap (Grid)" },
+                            { value: "horizontal", label: "Horizontal Scroll (Chips)" }
+                        ]
+                    }
+                }
+            }
         ];
         return b `
-        <ha-form
-          .hass=${this.hass}
-          .data=${this._config}
-          .schema=${schema}
-          .computeLabel=${(s) => s.label}
-          @value-changed=${this._valueChanged}
-        ></ha-form>
-      `;
+      <ha-form
+        .hass=${this.hass}
+        .data=${this._config}
+        .schema=${schema}
+        .computeLabel=${(s) => s.label}
+        @value-changed=${this._valueChanged}
+      ></ha-form>
+    `;
     }
 }
-if (!customElements.get("slick-simple-climate-card-editor")) {
-    customElements.define("slick-simple-climate-card-editor", SimpleClimateCardEditor);
+if (!customElements.get("slick-person-card-editor")) {
+    customElements.define("slick-person-card-editor", PersonCardEditor);
 }
-// Register
 window.customCards = window.customCards || [];
 window.customCards.push({
-    type: "slick-simple-climate-card",
-    name: "Slick Simple Climate",
+    type: "slick-person-card",
+    name: "Slick Person",
     preview: true,
-    description: "A clean climate card with dynamic gradients."
+    description: "A squircle person card with status overlay."
 });
 
-export { SimpleClimateCard };
-//# sourceMappingURL=simple-climate-card.js.map
+export { PersonCard };
+//# sourceMappingURL=person-card.js.map

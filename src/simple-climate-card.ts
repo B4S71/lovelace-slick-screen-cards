@@ -17,7 +17,7 @@ console.info(
   'color: #ff9800; background: white; font-weight: 700;'
 );
 
-class SimpleClimateCard extends LitElement {
+export class SimpleClimateCard extends LitElement {
   hass!: HomeAssistant;
   config!: SimpleClimateCardConfig;
 
@@ -29,22 +29,23 @@ class SimpleClimateCard extends LitElement {
   }
 
   static getConfigElement() {
-    return document.createElement("simple-climate-card-editor");
+    return document.createElement("slick-simple-climate-card-editor");
   }
 
   static getStubConfig() {
     return {
-      type: "custom:simple-climate-card",
-      entity: "climate.example",
+      type: "custom:slick-simple-climate-card",
+      entity: "",
       name: "Climate",
     };
   }
 
   setConfig(config: SimpleClimateCardConfig) {
-    if (!config.entity) {
-      throw new Error("Please define a climate entity");
-    }
-    this.config = config;
+    if (!config) throw new Error("Invalid configuration");
+    this.config = { name: "Climate", ...config };
+
+    if (this.config.name && typeof this.config.name !== 'string') throw new Error("name must be a string");
+    if (this.config.sensors && typeof this.config.sensors !== 'object') throw new Error("sensors must be an object");
   }
 
   private _interpolateColor(c1: string, c2: string, factor: number): string {
@@ -164,18 +165,24 @@ class SimpleClimateCard extends LitElement {
   }
 
   render() {
-    if (!this.hass || !this.config) return html``;
+    // If config is missing, we can't do anything
+    if (!this.config) return html``;
+    
+    // If hass is missing, we render a placeholder explicitly or return
+    // But typically user wants to see the card structure.
+    if (!this.hass) {
+        return html`<ha-card style="padding:16px;">Loading...</ha-card>`;
+    }
+
     const entityId = this.config.entity;
-    const stateObj = this.hass.states[entityId];
+    let stateObj = this.hass.states[entityId];
 
     if (!stateObj) {
-      return html`
-        <ha-card>
-          <div class="container" style="color: black;">
-            Entity not found: ${entityId}
-          </div>
-        </ha-card>
-      `;
+      stateObj = {
+        entity_id: entityId,
+        state: 'unavailable',
+        attributes: { friendly_name: this.config.name || entityId },
+      } as any;
     }
 
     // 1. Determine Temperatures
@@ -423,7 +430,11 @@ class SimpleClimateCard extends LitElement {
   }
 }
 
-customElements.define("simple-climate-card", SimpleClimateCard);
+// Register Custom Element
+if (!customElements.get("slick-simple-climate-card")) {
+  customElements.define("slick-simple-climate-card", SimpleClimateCard);
+  console.info("%c slick-simple-climate-card Registered", "color: green; font-weight: bold;");
+}
 
 class SimpleClimateCardEditor extends LitElement {
   hass!: HomeAssistant;
@@ -433,39 +444,45 @@ class SimpleClimateCardEditor extends LitElement {
   setConfig(config: SimpleClimateCardConfig) { this._config = config; }
   
   _valueChanged(ev: CustomEvent) { 
-    const newConfig = ev.detail.value; 
-    const event = new CustomEvent("config-changed", { detail: { config: newConfig }, bubbles: true, composed: true }); 
-    this.dispatchEvent(event); 
+    const newConfig = { ...this._config, ...ev.detail.value };
+    const event = new CustomEvent("config-changed", {
+      detail: { config: newConfig },
+      bubbles: true,
+      composed: true,
+    });
+    this.dispatchEvent(event);
   }
-  
+
   render() { 
-    if (!this.hass || !this._config) return html``;
-    // Basic schema for HA Form
-    const schema = [
-      { name: "entity", label: "Climate Entity", selector: { entity: { domain: "climate" } } },
-      { name: "name", label: "Display Name (Optional)", selector: { text: {} } }
-    ];
-    return html`<ha-form .hass=${this.hass} .data=${this._config} .schema=${schema} .computeLabel=${(s: any) => s.label} @value-changed=${this._valueChanged}></ha-form>`; 
-  }
+      // Minimal editor
+      if (!this.hass || !this._config) return html``;
+      
+      const schema = [
+        { name: "entity", label: "Entity", selector: { entity: { domain: "climate" } } },
+        { name: "name", label: "Name", selector: { text: {} } }
+      ];
+
+      return html`
+        <ha-form
+          .hass=${this.hass}
+          .data=${this._config}
+          .schema=${schema}
+          .computeLabel=${(s: any) => s.label}
+          @value-changed=${this._valueChanged}
+        ></ha-form>
+      `; 
+  } 
 }
 
-customElements.define("simple-climate-card-editor", SimpleClimateCardEditor);
-
-declare global {
-  interface Window {
-    customCards: Array<{
-      type: string;
-      name: string;
-      preview?: boolean;
-      description?: string;
-    }>;
-  }
+if (!customElements.get("slick-simple-climate-card-editor")) {
+  customElements.define("slick-simple-climate-card-editor", SimpleClimateCardEditor);
 }
 
+// Register
 window.customCards = window.customCards || [];
 window.customCards.push({ 
-    type: "simple-climate-card", 
-    name: "Simple Climate Card", 
-    preview: true, 
+    type: "slick-simple-climate-card", 
+    name: "Slick Simple Climate", 
+    preview: true,
     description: "A clean climate card with dynamic gradients." 
 });

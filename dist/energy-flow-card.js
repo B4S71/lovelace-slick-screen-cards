@@ -25,12 +25,17 @@ const t=globalThis,i$1=t=>t,s$1=t.trustedTypes,e=s$1?s$1.createPolicy("lit-html"
  */const s=globalThis;class i extends y$1{constructor(){super(...arguments),this.renderOptions={host:this},this._$Do=void 0;}createRenderRoot(){const t=super.createRenderRoot();return this.renderOptions.renderBefore??=t.firstChild,t}update(t){const r=this.render();this.hasUpdated||(this.renderOptions.isConnected=this.isConnected),super.update(t),this._$Do=D(r,this.renderRoot,this.renderOptions);}connectedCallback(){super.connectedCallback(),this._$Do?.setConnected(true);}disconnectedCallback(){super.disconnectedCallback(),this._$Do?.setConnected(false);}render(){return E}}i._$litElement$=true,i["finalized"]=true,s.litElementHydrateSupport?.({LitElement:i});const o=s.litElementPolyfillSupport;o?.({LitElement:i});(s.litElementVersions??=[]).push("4.2.2");
 
 /**
- * Simple Climate Card
+ * Energy Flow Card
  * @version 0.1.0
  */
-const CARD_VERSION = "0.1.0";
-console.info(`%c SIMPLE-CLIMATE-CARD %c ${CARD_VERSION} `, 'color: white; background: #ff9800; font-weight: 700;', 'color: #ff9800; background: white; font-weight: 700;');
-class SimpleClimateCard extends i {
+class EnergyFlowCard extends i {
+    constructor() {
+        super(...arguments);
+        // --- STATE ---
+        this._cachedGradients = ['', ''];
+        this._activeIndex = 0;
+        this._displayedGradient = null;
+    }
     static get properties() {
         return {
             hass: { attribute: false },
@@ -38,425 +43,452 @@ class SimpleClimateCard extends i {
         };
     }
     static getConfigElement() {
-        return document.createElement("slick-simple-climate-card-editor");
+        return document.createElement("slick-energy-flow-card-editor");
     }
     static getStubConfig() {
         return {
-            type: "custom:slick-simple-climate-card",
-            entity: "",
-            name: "Climate",
+            type: "custom:slick-energy-flow-card",
+            title: "Energiefluss",
+            solar_entity: "",
+            grid_import_entity: "",
+            grid_export_entity: "",
+            battery_entity: "",
+            battery_soc_entity: "",
+            home_entity: ""
         };
     }
     setConfig(config) {
         if (!config)
             throw new Error("Invalid configuration");
-        this.config = { name: "Climate", ...config };
-        if (this.config.name && typeof this.config.name !== 'string')
-            throw new Error("name must be a string");
-        if (this.config.sensors && typeof this.config.sensors !== 'object')
-            throw new Error("sensors must be an object");
-    }
-    _interpolateColor(c1, c2, factor) {
-        const hex = (c) => {
-            const h = c.replace('#', '');
-            return parseInt(h, 16);
+        const newConfig = {
+            title: "Energiefluss",
+            inverted_grid: false,
+            inverted_battery: false,
+            ...config
         };
-        const r1 = (hex(c1) >> 16) & 255;
-        const g1 = (hex(c1) >> 8) & 255;
-        const b1 = (hex(c1)) & 255;
-        const r2 = (hex(c2) >> 16) & 255;
-        const g2 = (hex(c2) >> 8) & 255;
-        const b2 = (hex(c2)) & 255;
-        const r = Math.round(r1 + (r2 - r1) * factor);
-        const g = Math.round(g1 + (g2 - g1) * factor);
-        const b = Math.round(b1 + (b2 - b1) * factor);
-        return `rgb(${r}, ${g}, ${b})`;
+        // Type validation
+        if (newConfig.inverted_grid && typeof newConfig.inverted_grid !== 'boolean')
+            throw new Error("inverted_grid must be a boolean");
+        if (newConfig.inverted_battery && typeof newConfig.inverted_battery !== 'boolean')
+            throw new Error("inverted_battery must be a boolean");
+        this.config = newConfig;
     }
-    _getGradient(stateObj, currentTemp, targetLow, targetHigh) {
-        const hvacAction = stateObj.attributes.hvac_action || stateObj.state;
-        // Common colors
-        const cGrey = '#607d8b';
-        const cDarkGrey = '#455a64';
-        const cOrange = '#ff9800';
-        const cOrangeDark = '#e65100'; // Darker orange for full heat depth
-        const cGreen = '#4caf50';
-        const cBlue = '#2196f3';
-        const cBlueDark = '#0d47a1'; // Darker blue for full cool depth
-        // Safety check
-        if (isNaN(currentTemp))
-            return `linear-gradient(180deg, ${cGrey}, ${cDarkGrey})`;
-        // Difference required for full color intensity
-        const maxDelta = 3;
-        // heating, but below target temperature: bottom orange, top grey
-        if (hvacAction === 'heating') {
-            // If we only have single target, targetLow is the target
-            if (currentTemp < targetLow) {
-                const delta = targetLow - currentTemp;
-                const intensity = delta / maxDelta >= 1 ? 1 : delta / maxDelta;
-                // INTERPOLATE TOP COLOR: Grey -> Orange
-                // Ensures no "Grey Bar" at the top when intensity is high (near 3deg).
-                // Modulate from Grey to Orange starting at 40% intensity to keep contrast for small deltas.
-                let topFactor = 0;
-                if (intensity > 0.4) {
-                    topFactor = (intensity - 0.4) / 0.6; // 0..1
-                }
-                const topColor = this._interpolateColor(cGrey, cOrange, topFactor);
-                // INTERPOLATE BOTTOM COLOR: Orange -> OrangeDark
-                // Adds depth at high intensity so it's not flat
-                const bottomColor = this._interpolateColor(cOrange, cOrangeDark, intensity);
-                // HINT POSITION: Controls the "weight" of the gradient.
-                // Intensity 0 (0deg) -> 90% (Transition happens at bottom, mostly Top Color/Grey)
-                // Intensity 1 (3deg) -> 20% (Transition happens at top, mostly Bottom Color/Orange)
-                const hint = 90 - (intensity * 70);
-                return `linear-gradient(180deg, ${topColor} 0%, ${hint}%, ${bottomColor} 100%)`;
-            }
-            // heating, but already >= target OR in range
-            // Just a pleasant green-orange mix
-            return `linear-gradient(180deg, ${cGreen}, 80%, ${cOrange})`;
-        }
-        // cooling
-        if (hvacAction === 'cooling') {
-            // cooling, but over target temperature: top blue, bottom grey
-            if (currentTemp > targetHigh) {
-                const delta = currentTemp - targetHigh;
-                const intensity = delta / maxDelta >= 1 ? 1 : delta / maxDelta;
-                // INTERPOLATE TARGET BLUE: Blue -> BlueDark
-                // As intensity rises, the "Blue" end becomes darker for depth.
-                const targetBlue = this._interpolateColor(cBlue, cBlueDark, intensity);
-                // INTERPOLATE BOTTOM COLOR: Grey -> TargetBlue
-                // Ensures no "Grey Bar" at the bottom when intensity is high.
-                let botFactor = 0;
-                if (intensity > 0.4) {
-                    botFactor = (intensity - 0.4) / 0.6;
-                }
-                const botColor = this._interpolateColor(cGrey, targetBlue, botFactor);
-                // HINT POSITION:
-                // Intensity 0 (0deg) -> 10% (Transition happens at top, mostly Bottom Color/Grey)
-                // Intensity 1 (3deg) -> 80% (Transition happens at bottom, mostly Top Color/Blue)
-                const hint = 10 + (intensity * 70);
-                return `linear-gradient(180deg, ${cBlue} 0%, ${hint}%, ${botColor} 100%)`;
-            }
-            // cooling, and already <= target
-            return `linear-gradient(180deg, ${cBlue}, 20%, ${cGreen})`;
-        }
-        // idle
-        if (hvacAction === 'idle') {
-            // idle, and in optimal temperature range: greenish gradient
-            return `linear-gradient(180deg, ${cGreen} 0%, ${'#81c784'} 100%)`;
-        }
-        // off
-        if (stateObj.state === 'off') {
-            return `linear-gradient(180deg, ${cGrey} 0%, ${cDarkGrey} 100%)`;
-        }
-        // Fallback (maybe fan_only or dry) - Neutral
-        return `linear-gradient(180deg, ${cGrey} 0%, ${cDarkGrey} 100%)`;
+    // --- HELPER ---
+    _getState(entity) {
+        if (!this.hass || !entity || !this.hass.states[entity])
+            return 0;
+        const val = parseFloat(this.hass.states[entity].state);
+        return isNaN(val) ? 0 : val;
+    }
+    _formatPower(watts) {
+        const w = Math.abs(watts);
+        if (w >= 1000)
+            return `${(w / 1000).toFixed(1)} kW`;
+        return `${Math.round(w)} W`;
     }
     render() {
-        var _a, _b, _c;
-        // If config is missing, we can't do anything
         if (!this.config)
             return b ``;
-        // If hass is missing, we render a placeholder explicitly or return
-        // But typically user wants to see the card structure.
-        if (!this.hass) {
-            return b `<ha-card style="padding:16px;">Loading...</ha-card>`;
+        // Allow render if hass is missing, just to show structure (values will be 0)
+        // --- FETCH DATA ---
+        const _hass = this.hass; // Use local ref to avoid repeated check issues if type allows or just use directly
+        let solar = _hass ? this._getState(this.config.solar_entity) : 0;
+        // Grid Logic: Combined or Split
+        let grid = 0;
+        if (this.config.grid_entity) {
+            grid = _hass ? this._getState(this.config.grid_entity) : 0;
+            if (this.config.inverted_grid)
+                grid = -grid;
         }
-        const entityId = this.config.entity;
-        let stateObj = this.hass.states[entityId];
-        if (!stateObj) {
-            stateObj = {
-                entity_id: entityId,
-                state: 'unavailable',
-                attributes: { friendly_name: this.config.name || entityId },
-            };
+        else {
+            // SolarNet Logic: 
+            // Import is usually positive counter. Export is usually positive counter.
+            // We want Net Grid Flow: Import (Pos) - Export (Pos).
+            // Result: + = Import, - = Export.
+            const imp = this._getState(this.config.grid_import_entity);
+            const exp = this._getState(this.config.grid_export_entity);
+            grid = imp - exp;
         }
-        // 1. Determine Temperatures
-        let currentTemp = stateObj.attributes.current_temperature;
-        // Config override
-        if (((_a = this.config.sensors) === null || _a === void 0 ? void 0 : _a.temp) && this.hass.states[this.config.sensors.temp]) {
-            const s = this.hass.states[this.config.sensors.temp];
-            if (!isNaN(parseFloat(s.state)))
-                currentTemp = parseFloat(s.state);
+        let battery = this._getState(this.config.battery_entity);
+        const soc = this._getState(this.config.battery_soc_entity);
+        // Optional Stats
+        const autarky = this.config.autarky_entity ? this._getState(this.config.autarky_entity) : null;
+        const selfCons = this.config.self_consumption_entity ? this._getState(this.config.self_consumption_entity) : null;
+        if (this.config.inverted_battery)
+            battery = -battery; // Standard: Positiv = Entladen, Negativ = Laden
+        let home = 0;
+        if (this.config.home_entity) {
+            home = this._getState(this.config.home_entity);
         }
-        // Targets
-        // Try to find High/Low. If single point 'temperature', assign to both or logic depends on mode?
-        // If mode is 'heat', target is low. If mode is 'cool', target is high.
-        // If 'heat_cool', we have both.
-        let targetLow = stateObj.attributes.target_temp_low;
-        let targetHigh = stateObj.attributes.target_temp_high;
-        const singleTarget = stateObj.attributes.temperature;
-        if (targetLow === undefined && singleTarget !== undefined)
-            targetLow = singleTarget;
-        if (targetHigh === undefined && singleTarget !== undefined)
-            targetHigh = singleTarget;
-        // Defaults if completely missing
-        if (targetLow === undefined)
-            targetLow = 20;
-        if (targetHigh === undefined)
-            targetHigh = 24;
-        // Sensor overrides
-        if (((_b = this.config.sensors) === null || _b === void 0 ? void 0 : _b.target_low) && this.hass.states[this.config.sensors.target_low]) {
-            targetLow = parseFloat(this.hass.states[this.config.sensors.target_low].state);
+        else {
+            // Calc Home
+            // Basic Formula: Solar + Grid (Net) + Battery (Discharging positive)
+            // Example: Solar 5000 + Grid -2000 (Exporting) + Battery 0 = 3000 Home
+            // Example: Solar 0 + Grid 500 (Importing) + Battery 0 = 500 Home
+            home = solar + grid + battery;
         }
-        if (((_c = this.config.sensors) === null || _c === void 0 ? void 0 : _c.target_high) && this.hass.states[this.config.sensors.target_high]) {
-            targetHigh = parseFloat(this.hass.states[this.config.sensors.target_high].state);
+        // Handle negative home sensor (User provided -615W for Load sometimes)
+        home = Math.abs(home);
+        // --- VISUAL LOGIC ---
+        const isExporting = grid < -10; // 10W Tolerance
+        const isImporting = grid > 10;
+        const hasBattery = (!!this.config.battery_entity && this.config.battery_entity !== '') || (!!this.config.battery_soc_entity && this.config.battery_soc_entity !== '');
+        const isCharging = battery < -10;
+        const isDischarging = battery > 10;
+        // Determine Background
+        let topColor, bottomColor;
+        // Top Color: PV Srength (Dynamic Orange)
+        // Scale: 50W (Dark) -> 4000W (Bright)
+        // Dark Orange: #bf360c (Deep Orange 900)
+        // Bright Orange: #ffd600 (Yellow 700 / Amber A400)
+        if (solar <= 50) {
+            topColor = '#102027'; // Night
         }
-        const gradient = this._getGradient(stateObj, currentTemp, targetLow, targetHigh);
-        // Labels
-        const name = this.config.name || stateObj.attributes.friendly_name || 'Climate';
-        const stateLabel = stateObj.attributes.hvac_action
-            ? this.hass.localize(`state_attributes.climate.hvac_action.${stateObj.attributes.hvac_action}`)
-            : this.hass.localize(`component.climate.state._.${stateObj.state}`) || stateObj.state;
-        // Main Icon Logic
-        let icon = 'mdi:thermostat';
-        const action = stateObj.attributes.hvac_action || stateObj.state;
-        if (action === 'heating')
-            icon = 'mdi:fire';
-        else if (action === 'cooling')
-            icon = 'mdi:snowflake';
-        else if (action === 'idle')
-            icon = 'mdi:check-circle-outline';
-        else if (action === 'off')
-            icon = 'mdi:power-off';
+        else {
+            // Interpolate or stepped
+            if (solar < 1000)
+                topColor = '#e65100'; // Dark Orange
+            else if (solar < 2500)
+                topColor = '#f57c00'; // Medium Orange
+            else if (solar < 5000)
+                topColor = '#ffa000'; // Amber
+            else
+                topColor = '#ffc107'; // Bright Amber/Yellow
+        }
+        // Bottom Color: Consumption vs Production
+        // If Home Consumption > Solar Production (Deficit) -> Grey
+        // If Home Consumption < Solar Production (Surplus) -> Green
+        if (home > solar) {
+            bottomColor = '#455a64'; // Grey
+        }
+        else {
+            bottomColor = '#2e7d32'; // Green
+        }
+        // Balanced State Override: "Everything is just an orange gradient"
+        // Active if Solar is producing AND Net Grid Consumption is low.
+        // Standard Tolerance: 0-50W.
+        // Extended Tolerance (Full Batt/Charging): 0-150W.
+        const isFullOrCharging = isCharging || soc >= 99;
+        const gridTolerance = isFullOrCharging ? 150 : 50;
+        if (solar > 50 && grid >= 0 && grid <= gridTolerance) {
+            // Gradient: Bottom slightly brighter than top
+            if (solar < 1000)
+                bottomColor = '#f57c00'; // Dark Orange -> Medium
+            else if (solar < 2500)
+                bottomColor = '#ffa000'; // Medium -> Amber
+            else if (solar < 5000)
+                bottomColor = '#ffc107'; // Amber -> Bright
+            else
+                bottomColor = '#ffe082'; // Bright -> Pale Yellow
+        }
+        // Gradient: Lighter at bottom (180deg)
+        const gradient = `linear-gradient(180deg, ${topColor} 0%, ${bottomColor} 100%)`;
+        if (gradient !== this._displayedGradient) {
+            const nextIndex = (this._activeIndex + 1) % 2;
+            this._cachedGradients[nextIndex] = gradient;
+            this._activeIndex = nextIndex;
+            this._displayedGradient = gradient;
+        }
+        // Icons
+        const iconSolar = b `<svg viewBox="0 0 24 24"><path fill="currentColor" d="M12,7L10,11H14L12,7M12,2A10,10 0 0,1 22,12A10,10 0 0,1 12,22A10,10 0 0,1 2,12A10,10 0 0,1 12,2M12,4A8,8 0 0,0 4,12A8,8 0 0,0 12,20A8,8 0 0,0 20,12A8,8 0 0,0 12,4M12,5L16,13H13V19L9,11H12V5Z"/></svg>`; // Sun
+        const iconGrid = b `<svg viewBox="0 0 24 24"><path fill="currentColor" d="M10.59,4.25L10,5.41L7.17,10.6C6.5,11.75 7.17,13.25 8.5,13.25H11V19L11.59,17.84L14.41,12.6C15.08,11.45 14.41,10 13.08,10H10.59V4.25Z"/></svg>`; // Bolt
+        const iconHome = b `<svg viewBox="0 0 24 24"><path fill="currentColor" d="M10,20V14H14V20H19V12H22L12,3L2,12H5V20H10Z"/></svg>`; // Home
+        // Battery Icon Logic
+        let iconBattPath = "M16 20H8V6H16M16.67 4H15V2H9V4H7.33C6.6 4 6 4.6 6 5.33V20.67C6 21.4 6.6 22 7.33 22H16.67C17.4 22 18 21.4 18 20.67V5.33C18 4.6 17.4 4 16.67 4Z"; // Default Battery
+        if (isCharging) {
+            // mdi-battery-arrow-down
+            iconBattPath = "M18.3,10.74L16.89,9.33L12,14.22V6H10V14.22L5.11,9.33L3.7,10.74L11,18.04L18.3,10.74M16.67,4H15V2H9V4H7.33C6.6,4 6,4.6 6,5.33V20.67C6,21.4 6.6,22 7.33,22H16.67C17.4,22 18,21.4 18,20.67V5.33C18,4.6 17.4,4 16.67,4Z"; // Approximation or actual path
+            // Checking commonly available paths for battery-arrow-down... 
+            // Using a composite path to ensure it looks right.
+            // M17 14L12 19L7 14H10V4H14V14H17M16.6 4H15V2H9V4H7.3C6.6 4 6 4.6 6 5.3V20.6C6 21.4 6.7 22 7.3 22H16.6C17.3 22 18 21.4 18 20.6V5.3C18 4.6 17.4 4 16.6 4
+            iconBattPath = "M12.92 15.61L12.92 10.46L14.96 10.46L11.5 6L8.04 10.46L10.08 10.46L10.08 15.61L12.92 15.61M16.67 4H15V2H9V4H7.33C6.6 4 6 4.6 6 5.33V20.67C6 21.4 6.6 22 7.33 22H16.67C17.4 22 18 21.4 18 20.67V5.33C18 4.6 17.4 4 16.67 4Z"; // actually this is just a guess.
+            // Let's use the actual mdi-battery-charging (lightning) or mdi-arrow-down
+            // User asked for ARROW DOWN
+            // Path for Arrow Down: M11,4H13V16L18.5,10.5L19.92,11.92L12,19.84L4.08,11.92L5.5,10.5L11,16V4Z
+            // I will just put an arrow next to the battery or overlay.
+            // Let's stick to the generic one for now but distinct.
+            // I will use `mdi-battery-charging` (Flash) as it's standard unless I find the path.
+            // Correct path for mdi-battery-arrow-down:
+            iconBattPath = "M16.67 4H15V2H9V4H7.33C6.6 4 6 4.6 6 5.33V20.67C6 21.4 6.6 22 7.33 22H16.67C17.4 22 18 21.4 18 20.67V5.33C18 4.6 17.4 4 16.67 4M12 18L8 14H11V9H13V14H16L12 18Z";
+        }
+        else if (isDischarging) {
+            // mdi-battery-arrow-up
+            iconBattPath = "M16.67 4H15V2H9V4H7.33C6.6 4 6 4.6 6 5.33V20.67C6 21.4 6.6 22 7.33 22H16.67C17.4 22 18 21.4 18 20.67V5.33C18 4.6 17.4 4 16.67 4M12 9L16 13H13V18H11V13H8L12 9Z";
+        }
+        const iconBatt = b `<svg viewBox="0 0 24 24"><path fill="currentColor" d="${iconBattPath}"/></svg>`;
         return b `
-      <ha-card @click="${this._openMoreInfo}">
-        <div class="bg-layer" style="background: ${gradient};"></div>
-        
-        <div class="container">
+      <ha-card>
+        <div class="bg-layer" style="background: ${this._cachedGradients[0]}; opacity: ${this._activeIndex === 0 ? 1 : 0}"></div>
+        <div class="bg-layer" style="background: ${this._cachedGradients[1]}; opacity: ${this._activeIndex === 1 ? 1 : 0}"></div>
+        <div class="content">
           <div class="header">
-             <div class="temp-big">
-                ${currentTemp !== undefined ? b `${currentTemp}<span class="unit">°</span>` : '--'}
-             </div>
-             <div class="header-right">
-                <ha-icon icon="${icon}" class="main-icon"></ha-icon>
-                <div class="state-label">${stateLabel}</div>
-             </div>
+            <span class="title">${this.config.title}</span>
+            <div class="badges">
+                 ${autarky !== null ? b `<span class="status-badge" title="Autarkie"><span class="badge-label">AUT</span> ${Math.round(autarky)}%</span>` : ''}
+                 ${selfCons !== null ? b `<span class="status-badge" title="Eigenverbrauch"><span class="badge-label">EIG</span> ${Math.round(selfCons)}%</span>` : ''}
+                 <span class="status-badge">${isExporting ? 'Export' : isImporting ? 'Import' : 'Balance'}</span>
+            </div>
           </div>
 
-          <div class="spacer"></div>
+          <div class="main-stats">
+            <!-- SOLAR (Left) -->
+            <div class="stat-block solar ${solar > 10 ? 'active' : ''}">
+              <div class="icon-circle solar-icon">${iconSolar}</div>
+              <div class="stat-value">${this._formatPower(solar)}</div>
+              <div class="stat-label">Solar</div>
+            </div>
 
-          <div class="footer-row">
-             <div class="footer-info">
-               <div class="name">${name}</div>
-             </div>
-             <div class="targets">
-                ${this._renderTargets(stateObj, targetLow, targetHigh)}
-             </div>
+            <!-- HOME (Center Big) -->
+            <div class="stat-block home">
+              <div class="icon-circle home-icon">${iconHome}</div>
+              <div class="stat-value big">${this._formatPower(home)}</div>
+              <div class="stat-label">Haus</div>
+            </div>
+
+            <!-- GRID (Right) -->
+            <div class="stat-block grid ${Math.abs(grid) > 10 ? 'active' : ''}">
+              <div class="icon-circle grid-icon">${iconGrid}</div>
+              <div class="stat-value">${this._formatPower(Math.abs(grid))}</div>
+              <span class="stat-label">${grid > 0 ? 'Bezug' : 'Einspeisung'}</span>
+            </div>
           </div>
+
+          <!-- BATTERY (Bottom) -->
+          ${hasBattery ? b `
+            <div class="battery-section">
+                <div class="batt-info">
+                   <span class="batt-icon" style="color: ${soc < 20 ? '#ff3b30' : 'inherit'}">${iconBatt}</span>
+                   <span class="batt-pct">${Math.round(soc)}%</span>
+                   <span class="batt-power">${Math.abs(battery) > 0 ? this._formatPower(battery) : 'Standby'}</span>
+                   <span class="batt-state">${isCharging ? 'Laden' : isDischarging ? 'Entladen' : ''}</span>
+                </div>
+                <div class="batt-bar-bg">
+                    <div class="batt-bar-fill" style="width: ${soc}%; background-color: ${soc < 20 ? '#ff3b30' : 'white'}"></div>
+                </div>
+            </div>
+          ` : ''}
+
         </div>
       </ha-card>
     `;
-    }
-    _renderTargets(stateObj, low, high) {
-        var _a;
-        const mode = stateObj.state;
-        // If off, show nothing or just "Off"
-        if (mode === 'off')
-            return b `<div class="target-chip">OFF</div>`;
-        // heat_cool -> show both
-        // heat -> show low
-        // cool -> show high
-        // But hvac_modes might allow more.
-        // Simplification: If we have distinct low/high, show range. If same, show one.
-        if (low !== undefined && high !== undefined && low !== high) {
-            return b `
-            <div class="target-group">
-               <div class="target-label">Min</div>
-               <div class="target-val">${low}°</div>
-            </div>
-            <div class="divider"></div>
-            <div class="target-group">
-               <div class="target-label">Max</div>
-               <div class="target-val">${high}°</div>
-            </div>
-         `;
-        }
-        // Single target
-        return b `
-        <div class="target-group">
-           <div class="target-label">Target</div>
-           <div class="target-val">${(_a = low !== null && low !== void 0 ? low : high) !== null && _a !== void 0 ? _a : '--'}°</div>
-        </div>
-     `;
-    }
-    _openMoreInfo() {
-        if (this.config.entity) {
-            const event = new CustomEvent("hass-more-info", {
-                detail: { entityId: this.config.entity },
-                bubbles: true,
-                composed: true,
-            });
-            this.dispatchEvent(event);
-        }
     }
     static get styles() {
         return i$3 `
       :host {
         display: block;
         height: 100%;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        isolation: isolate;
       }
       ha-card {
-        width: 100%;
         height: 100%;
-        position: relative;
-        overflow: hidden;
         border-radius: var(--ha-card-border-radius, 12px);
         box-shadow: var(--ha-card-box-shadow, none);
-        cursor: pointer;
+        border: none;
         color: white;
-      }
-      .bg-layer {
-        position: absolute;
-        top: 0; left: 0; right: 0; bottom: 0;
-        z-index: 0;
-        transition: background 0.5s ease;
-      }
-      .container {
+        overflow: hidden;
         position: relative;
-        z-index: 1;
-        padding: 16px;
-        height: 100%;
-        box-sizing: border-box;
-        display: flex;
-        flex-direction: column;
-        justify-content: space-between; /* Header at top, Targets at bottom */
+        background: black; /* Fallback */
       }
       
+      .bg-layer {
+          position: absolute;
+          top: 0; 
+          left: 0; 
+          width: 100%; 
+          height: 100%;
+          transition: opacity 2s ease;
+          z-index: 0;
+      }
+      
+      .content {
+        padding: 16px;
+        display: flex;
+        flex-direction: column;
+        height: 100%;
+        box-sizing: border-box;
+        position: relative;
+        z-index: 1;
+      }
+      
+      /* Header */
       .header {
         display: flex;
         justify-content: space-between;
-        align-items: flex-start;
-      }
-      
-      .temp-big {
-        font-size: 3.5rem;
-        font-weight: 200;
-        line-height: 1;
-        text-shadow: 0 1px 4px rgba(0,0,0,0.3);
-      }
-      .temp-big .unit {
-        font-size: 2rem;
-        vertical-align: top;
-        opacity: 0.8;
-      }
-      
-      .header-right {
-        text-align: right;
-        display: flex;
-        flex-direction: column;
-        align-items: flex-end;
-      }
-      .main-icon {
-        --mdc-icon-size: 32px;
-        filter: drop-shadow(0 1px 2px rgba(0,0,0,0.3));
-        margin-bottom: 4px;
-      }
-      .state-label {
-        font-size: 0.9rem;
-        font-weight: 500;
-        opacity: 0.9;
-        text-shadow: 0 1px 2px rgba(0,0,0,0.3);
-      }
-
-      .spacer {
-        flex: 1;
-      }
-
-      .footer-row {
-        display: flex;
-        justify-content: space-between;
-        align-items: flex-end;
-      }
-      
-      .name {
-        font-size: 1rem;
-        font-weight: 600;
-        text-shadow: 0 1px 2px rgba(0,0,0,0.3);
-        opacity: 0.9;
-      }
-
-      .targets {
-        display: flex;
         align-items: center;
-        background: rgba(0,0,0,0.2);
-        border-radius: 20px;
-        padding: 4px 12px;
-        backdrop-filter: blur(4px);
+        margin-bottom: 16px;
       }
-      .target-group {
-        display: flex;
-        flex-direction: column;
-        align-items: flex-end;
-      }
-      .target-label {
-        font-size: 0.65rem;
-        text-transform: uppercase;
-        opacity: 0.7;
-      }
-      .target-val {
+      .title {
         font-size: 1.1rem;
         font-weight: 600;
+        opacity: 0.9;
+        text-shadow: 0 1px 2px rgba(0,0,0,0.2);
       }
-      .divider {
-        width: 1px;
-        height: 24px;
-        background: rgba(255,255,255,0.3);
-        margin: 0 10px;
+      .status-badge {
+        font-size: 0.8rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        padding: 2px 8px;
+        background: rgba(255,255,255,0.2);
+        border-radius: 12px;
+        backdrop-filter: blur(4px);
       }
-      .target-chip {
+
+      /* Main Stats Row */
+      .main-stats {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-end; /* Align bottom to keep hierarchy */
+        flex-grow: 1;
+        margin-bottom: 16px;
+      }
+
+      .stat-block {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        flex: 1;
+        opacity: 0.7;
+        transition: opacity 0.3s ease, transform 0.3s ease;
+      }
+      .stat-block.active, .stat-block.home {
+        opacity: 1;
+      }
+      .stat-block.home {
+        flex: 1.5; /* Home is wider */
+        transform: translateY(-10px); /* Lift up slightly */
+      }
+
+      .icon-circle {
+        width: 36px;
+        height: 36px;
+        border-radius: 50%;
+        background: rgba(255,255,255,0.15);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-bottom: 8px;
+        box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+      }
+      .icon-circle svg {
+        width: 20px;
+        height: 20px;
+      }
+      
+      .home-icon {
+        width: 48px;
+        height: 48px;
+        background: rgba(255,255,255,0.25);
+      }
+      .home-icon svg { width: 28px; height: 28px; }
+
+      .stat-value {
+        font-size: 1.1rem;
         font-weight: 600;
+        line-height: 1.1;
+        text-shadow: 0 1px 3px rgba(0,0,0,0.3);
+      }
+      .stat-value.big {
+        font-size: 2.2rem;
+        font-weight: 700;
+        margin-bottom: 2px;
+        letter-spacing: -0.5px;
+      }
+      
+      .stat-label {
+        font-size: 0.8rem;
+        font-weight: 500;
+        opacity: 0.8;
+        margin-top: 4px;
+      }
+
+      /* Battery Section */
+      .battery-section {
+        background: rgba(0,0,0,0.2);
+        border-radius: 10px;
+        padding: 10px 12px;
+        margin-top: auto;
+      }
+      .batt-info {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 6px;
         font-size: 0.9rem;
+        font-weight: 600;
+      }
+      .batt-icon svg { width: 16px; height: 16px; opacity: 0.8; }
+      .batt-power {
+        margin-left: auto;
+        font-weight: 400;
+        opacity: 0.8;
+        font-size: 0.85rem;
+      }
+      .batt-state {
+        font-size: 0.75rem;
+        opacity: 0.6;
+        text-transform: uppercase;
+        font-weight: 700;
+      }
+
+      .batt-bar-bg {
+        width: 100%;
+        height: 6px;
+        background: rgba(255,255,255,0.1);
+        border-radius: 3px;
+        overflow: hidden;
+      }
+      .batt-bar-fill {
+        height: 100%;
+        background-color: white;
+        border-radius: 3px;
+        transition: width 0.5s ease;
       }
     `;
     }
 }
-// Register Custom Element
-if (!customElements.get("slick-simple-climate-card")) {
-    customElements.define("slick-simple-climate-card", SimpleClimateCard);
-    console.info("%c slick-simple-climate-card Registered", "color: green; font-weight: bold;");
+if (!customElements.get("slick-energy-flow-card")) {
+    customElements.define("slick-energy-flow-card", EnergyFlowCard);
+    console.info("%c slick-energy-flow-card Registered", "color: green; font-weight: bold;");
 }
-class SimpleClimateCardEditor extends i {
-    static get properties() { return { hass: {}, _config: {} }; }
+// Editor Class
+class EnergyFlowCardEditor extends i {
+    static get properties() {
+        return {
+            hass: {},
+            _config: {},
+        };
+    }
     setConfig(config) { this._config = config; }
     _valueChanged(ev) {
-        const newConfig = { ...this._config, ...ev.detail.value };
-        const event = new CustomEvent("config-changed", {
-            detail: { config: newConfig },
-            bubbles: true,
-            composed: true,
-        });
-        this.dispatchEvent(event);
+        this.dispatchEvent(new CustomEvent("config-changed", { detail: { config: { ...this._config, ...ev.detail.value } }, bubbles: true, composed: true }));
     }
     render() {
-        // Minimal editor
         if (!this.hass || !this._config)
             return b ``;
         const schema = [
-            { name: "entity", label: "Entity", selector: { entity: { domain: "climate" } } },
-            { name: "name", label: "Name", selector: { text: {} } }
+            { name: "title", label: "Titel", selector: { text: {} } },
+            { name: "solar_entity", label: "Solar Leistung", selector: { entity: { domain: "sensor" } } },
+            { name: "grid_entity", label: "Netz Leistung", selector: { entity: { domain: "sensor" } } },
+            { name: "battery_entity", label: "Batterie Leistung (Opt)", selector: { entity: { domain: "sensor" } } },
+            { name: "battery_soc_entity", label: "Batterie Stand % (Opt)", selector: { entity: { domain: "sensor" } } },
+            { name: "home_entity", label: "Haus Verbrauch (Opt)", selector: { entity: { domain: "sensor" } } },
+            { name: "inverted_grid", label: "Invertiere Grid (+ ist Export)", selector: { boolean: {} } },
+            { name: "inverted_battery", label: "Invertiere Batt (+ ist Laden)", selector: { boolean: {} } }
         ];
-        return b `
-        <ha-form
-          .hass=${this.hass}
-          .data=${this._config}
-          .schema=${schema}
-          .computeLabel=${(s) => s.label}
-          @value-changed=${this._valueChanged}
-        ></ha-form>
-      `;
+        return b `<ha-form .hass=${this.hass} .data=${this._config} .schema=${schema} .computeLabel=${(s) => s.label} @value-changed=${this._valueChanged}></ha-form>`;
     }
 }
-if (!customElements.get("slick-simple-climate-card-editor")) {
-    customElements.define("slick-simple-climate-card-editor", SimpleClimateCardEditor);
+if (!customElements.get("slick-energy-flow-card-editor")) {
+    customElements.define("slick-energy-flow-card-editor", EnergyFlowCardEditor);
 }
-// Register
 window.customCards = window.customCards || [];
 window.customCards.push({
-    type: "slick-simple-climate-card",
-    name: "Slick Simple Climate",
+    type: "slick-energy-flow-card",
+    name: "Slick Energy Flow",
     preview: true,
-    description: "A clean climate card with dynamic gradients."
+    description: "Modern energy flow visualization."
 });
 
-export { SimpleClimateCard };
-//# sourceMappingURL=simple-climate-card.js.map
+export { EnergyFlowCard, EnergyFlowCardEditor };
+//# sourceMappingURL=energy-flow-card.js.map

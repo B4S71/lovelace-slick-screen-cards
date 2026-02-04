@@ -14,12 +14,8 @@ export default [
       resolve(),
       typescript({
         tsconfig: './tsconfig.json'
-      }),
-      terser({
-        format: {
-          comments: false
-        }
       })
+      // terser removed for debugging
     ]
   },
   {
@@ -33,11 +29,6 @@ export default [
       resolve(),
       typescript({
         tsconfig: './tsconfig.json'
-      }),
-      terser({
-        format: {
-          comments: false
-        }
       })
     ]
   },
@@ -52,11 +43,6 @@ export default [
       resolve(),
       typescript({
         tsconfig: './tsconfig.json'
-      }),
-      terser({
-        format: {
-          comments: false
-        }
       })
     ]
   },
@@ -71,30 +57,6 @@ export default [
       resolve(),
       typescript({
         tsconfig: './tsconfig.json'
-      }),
-      terser({
-        format: {
-          comments: false
-        }
-      })
-    ]
-  },
-  {
-    input: 'src/heating-cooling-card.ts',
-    output: {
-      file: 'dist/heating-cooling-card.js',
-      format: 'es',
-      sourcemap: true
-    },
-    plugins: [
-      resolve(),
-      typescript({
-        tsconfig: './tsconfig.json'
-      }),
-      terser({
-        format: {
-          comments: false
-        }
       })
     ]
   },
@@ -109,11 +71,34 @@ export default [
       resolve(),
       typescript({
         tsconfig: './tsconfig.json'
-      }),
-      terser({
-        format: {
-          comments: false
-        }
+      })
+    ]
+  },
+  {
+    input: 'src/energy-flow-card.ts',
+    output: {
+      file: 'dist/energy-flow-card.js',
+      format: 'es',
+      sourcemap: true
+    },
+    plugins: [
+      resolve(),
+      typescript({
+        tsconfig: './tsconfig.json'
+      })
+    ]
+  },
+  {
+    input: 'src/person-card.ts',
+    output: {
+      file: 'dist/person-card.js',
+      format: 'es',
+      sourcemap: true
+    },
+    plugins: [
+      resolve(),
+      typescript({
+        tsconfig: './tsconfig.json'
       })
     ]
   }

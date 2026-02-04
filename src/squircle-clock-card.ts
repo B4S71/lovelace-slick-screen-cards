@@ -3,6 +3,7 @@
  * @version 0.1.0
  */
 
+import { LitElement, html, css } from 'lit';
 import type {
   HomeAssistant,
   SquircleClockCardConfig,
@@ -45,7 +46,7 @@ const CARD_SCHEMA: SchemaItem[] = [
   }
 ];
 
-class SquircleClockCard extends HTMLElement {
+export class SquircleClockCard extends HTMLElement {
   private _hass?: HomeAssistant;
   private config!: SquircleClockCardConfig;
   private _timer?: number;
@@ -61,21 +62,37 @@ class SquircleClockCard extends HTMLElement {
   private _lastSecond: number = -1;
 
   static getConfigElement() {
-    return document.createElement("squircle-clock-editor");
+    return document.createElement("slick-squircle-clock-editor");
   }
 
   static getStubConfig() {
     return { 
-      type: "custom:squircle-clock-card",
-      display_mode: "analog",
+      type: "custom:slick-squircle-clock-card",
+      display_mode: "digital",
       font_style: "standard"
     };
   }
 
   set hass(hass: HomeAssistant) { this._hass = hass; }
   
-  setConfig(config: SquircleClockCardConfig) { 
-    this.config = config; 
+  setConfig(config: SquircleClockCardConfig) {
+    if (!config) throw new Error("Invalid configuration");
+
+    const newConfig: SquircleClockCardConfig = {
+        display_mode: 'digital',
+        font_style: 'standard', // Apple Bold
+        ...config
+    };
+
+    // Validation
+    if (newConfig.display_mode && !['analog', 'digital'].includes(newConfig.display_mode)) {
+        throw new Error(`Invalid display_mode: ${newConfig.display_mode}`);
+    }
+    if (newConfig.font_style && !['standard', 'thin', 'retro'].includes(newConfig.font_style)) {
+        throw new Error(`Invalid font_style: ${newConfig.font_style}`);
+    }
+
+    this.config = newConfig; 
     if (this.shadowRoot) {
         this._render();
         this._drawContent(); 
@@ -90,6 +107,8 @@ class SquircleClockCard extends HTMLElement {
       grid_min_columns: 1,
     };
   }
+
+  // --- CONNECTED/DISCONNECTED (Old Style + Fix) ---
 
   connectedCallback() {
     if (!this.shadowRoot) this.attachShadow({ mode: 'open' });
@@ -112,10 +131,10 @@ class SquircleClockCard extends HTMLElement {
       let displayTime = now;
 
       // Zeitzonen-Logik
-      let timezone = this.config.timezone;
+      let timezone = this.config?.timezone;
       
       // Prüfe ob timezone_entity gesetzt ist und hole Zeitzone daraus
-      if (this.config.timezone_entity && this._hass) {
+      if (this.config?.timezone_entity && this._hass) {
         const entity = this._hass.states[this.config.timezone_entity];
         if (entity && entity.state) {
           timezone = entity.state;
@@ -133,7 +152,7 @@ class SquircleClockCard extends HTMLElement {
         }
       }
 
-      if (this.config.display_mode === 'digital') {
+      if (this.config?.display_mode === 'digital') {
         this._updateDigital(displayTime);
       } else {
         this._updateAnalog(displayTime);
@@ -184,7 +203,7 @@ class SquircleClockCard extends HTMLElement {
 
   // --- CSS FÜR SCHRIFTARTEN ---
   _getFontStyle(): string {
-      const style = this.config.font_style || 'standard';
+      const style = this.config?.font_style || 'standard';
       switch(style) {
           case 'thin':
               return `
@@ -245,7 +264,7 @@ class SquircleClockCard extends HTMLElement {
             opacity: 0.6; 
             margin-top: 4px; 
             text-transform: uppercase; 
-            font-weight: ${this.config.font_style === 'thin' ? '400' : 'bold'};
+            font-weight: ${this.config?.font_style === 'thin' ? '400' : 'bold'};
         }
         
         /* Aktiver Sekunden-Tick (Digital) */
@@ -276,7 +295,7 @@ class SquircleClockCard extends HTMLElement {
     }
     const radius = rVal || (minDim * 0.22);
 
-    const mode = this.config.display_mode || 'analog';
+    const mode = this.config?.display_mode || 'analog';
 
     if (mode === 'analog') {
         this._drawAnalog(container, w, h, radius, minDim);
@@ -296,8 +315,8 @@ class SquircleClockCard extends HTMLElement {
       
       // Bei Retro dicke Striche, bei Thin dünne
       let sw = isHour ? 3 : 1.5;
-      if (this.config.font_style === 'retro' && isHour) sw = 4.5;
-      if (this.config.font_style === 'retro' && !isHour) sw = 2;
+      if (this.config?.font_style === 'retro' && isHour) sw = 4.5;
+      if (this.config?.font_style === 'retro' && !isHour) sw = 2;
       
       ticks += `<line x1="${p1.x}" y1="${p1.y}" x2="${p2.x}" y2="${p2.y}" stroke="${color}" stroke-width="${sw}" stroke-linecap="round" />`;
     }
@@ -358,7 +377,7 @@ class SquircleClockCard extends HTMLElement {
     this._lastSecond = -1;
     const now = new Date();
     // Falls Zeitzone konfiguriert ist, direkt anwenden für Initial-Render
-    if (this.config.timezone) {
+    if (this.config?.timezone) {
         try {
             const tzString = now.toLocaleString('en-US', { timeZone: this.config.timezone });
             const tzTime = new Date(tzString);
@@ -391,7 +410,7 @@ class SquircleClockCard extends HTMLElement {
         
         const options: Intl.DateTimeFormatOptions = { weekday: 'short', day: 'numeric' };
         const localeOptions: Intl.DateTimeFormatOptions = { ...options };
-        if (this.config.timezone) localeOptions.timeZone = this.config.timezone;
+        if (this.config?.timezone) localeOptions.timeZone = this.config.timezone;
         if (this._dateDisplay) {
           this._dateDisplay.textContent = new Date().toLocaleDateString('de-DE', localeOptions);
         }
@@ -410,70 +429,60 @@ class SquircleClockCard extends HTMLElement {
   }
 }
 
-// --- EDITOR (NATIVE) ---
-class SquircleClockEditor extends HTMLElement {
-  private _config!: SquircleClockCardConfig;
-  private _hass?: HomeAssistant;
-  private _form?: any;
+// --- EDITOR (LIT) ---
+class SquircleClockEditor extends LitElement {
+  hass!: HomeAssistant;
+  _config!: SquircleClockCardConfig;
+
+  static get properties() {
+    return {
+      hass: { attribute: false },
+      _config: { state: true },
+    };
+  }
 
   setConfig(config: SquircleClockCardConfig) {
     this._config = config;
   }
 
-  set hass(hass: HomeAssistant) {
-    this._hass = hass;
-    // WICHTIG: Hass an das Formular weitergeben, sobald verfügbar
-    if (this._form) {
-      this._form.hass = hass;
-    }
-  }
-
-  connectedCallback() {
-    this._render();
-  }
-
-  _render() {
-    if (!this._form) {
-      this._form = document.createElement("ha-form");
-      this._form.schema = CARD_SCHEMA;
-      this._form.computeLabel = (schema: SchemaItem) => schema.label || schema.name;
-      this._form.addEventListener("value-changed", (ev: Event) => this._valueChanged(ev as CustomEvent));
-      this.appendChild(this._form);
-    }
-    this._form.data = this._config;
-    // Hier sicherstellen, dass hass existiert, bevor es übergeben wird
-    if(this._hass) this._form.hass = this._hass;
-  }
-
   _valueChanged(ev: CustomEvent) {
+    if (!this._config || !this.hass) return;
     const newConfig = { ...this._config, ...ev.detail.value };
-    const event = new CustomEvent("config-changed", {
+    
+    this.dispatchEvent(new CustomEvent("config-changed", {
       detail: { config: newConfig },
       bubbles: true,
       composed: true,
-    });
-    this.dispatchEvent(event);
+    }));
+  }
+
+  render() {
+    if (!this.hass || !this._config) return html``;
+    
+    return html`
+      <ha-form
+        .hass=${this.hass}
+        .data=${this._config}
+        .schema=${CARD_SCHEMA}
+        .computeLabel=${(s: any) => s.label || s.name}
+        @value-changed=${this._valueChanged}
+      ></ha-form>
+    `;
   }
 }
 
-customElements.define('squircle-clock-card', SquircleClockCard);
-customElements.define('squircle-clock-editor', SquircleClockEditor);
-
-declare global {
-  interface Window {
-    customCards: Array<{
-      type: string;
-      name: string;
-      preview?: boolean;
-      description?: string;
-    }>;
-  }
+if (!customElements.get('slick-squircle-clock-card')) {
+  customElements.define('slick-squircle-clock-card', SquircleClockCard);
+  console.info("%c slick-squircle-clock-card Registered", "color: green; font-weight: bold;");
+}
+if (!customElements.get('slick-squircle-clock-editor')) {
+  customElements.define('slick-squircle-clock-editor', SquircleClockEditor);
 }
 
 window.customCards = window.customCards || [];
 window.customCards.push({
-  type: "squircle-clock-card",
-  name: "Squircle Clock Card",
+  type: "slick-squircle-clock-card",
+  name: "Slick Squircle Clock",
   preview: true,
-  description: "Native HA-Konfiguration verfügbar."
+  description: "A customizable clock card with analog and digital modes."
 });
