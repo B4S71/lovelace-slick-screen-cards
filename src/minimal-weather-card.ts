@@ -189,7 +189,7 @@ function getGradients(timeOfDay: TimeOfDay, isBad: boolean): Gradients {
 // ----------------------------------------------------------------------
 // HAUPT KARTE
 // ----------------------------------------------------------------------
-class MiniWeatherCard extends LitElement {
+export class MiniWeatherCard extends LitElement {
   hass!: HomeAssistant;
   config!: MiniWeatherCardConfig;
   _forecast: ForecastData[] | null = null;
@@ -211,8 +211,23 @@ class MiniWeatherCard extends LitElement {
     };
   }
 
-  static getConfigElement() { return document.createElement("mini-weather-card-editor"); }
-  static getStubConfig() { return { entity: "", title: "Wetter", mode: "daily", sampling_size: 50, history_hours: 24 }; }
+  static getConfigElement() { return document.createElement("slick-minimal-weather-card-editor"); }
+  
+  static getStubConfig(hass: HomeAssistant) {
+    let entity = "";
+    if (hass && hass.states) {
+       const weatherEntities = Object.keys(hass.states).filter(id => id.startsWith("weather."));
+       if (weatherEntities.length > 0) entity = weatherEntities[0];
+    }
+    return { 
+        type: 'custom:slick-minimal-weather-card', 
+        entity: entity, 
+        title: "Wetter", 
+        mode: "daily", 
+        sampling_size: 50, 
+        history_hours: 24 
+    }; 
+  }
 
   constructor() {
     super();
@@ -246,7 +261,9 @@ class MiniWeatherCard extends LitElement {
   }
 
   setConfig(config: MiniWeatherCardConfig) {
-    this.config = {
+    if (!config) throw new Error("Invalid configuration");
+
+    const newConfig = {
       title: "Wetter",
       mode: "daily",
       temp_sensor: undefined,
@@ -256,6 +273,12 @@ class MiniWeatherCard extends LitElement {
       history_hours: 24,
       ...config
     };
+
+    if (newConfig.mode && !['daily', 'hourly'].includes(newConfig.mode)) {
+        throw new Error(`Invalid mode: ${newConfig.mode}. Expected 'daily' or 'hourly'.`);
+    }
+
+    this.config = newConfig as MiniWeatherCardConfig;
   }
 
   updated(changedProps: Map<string, any>) {
@@ -365,13 +388,12 @@ class MiniWeatherCard extends LitElement {
   }
 
   render() {
-    if (!this.hass || !this.config) return html``;
-    if (!this.config.entity) return html`<ha-card style="padding:16px;">Bitte konfigurieren</ha-card>`;
+    if (!this.config) return html``;
+    if (!this.hass) return html``;
 
-    const stateObj = this.hass.states[this.config.entity];
-    if (!stateObj) return html`<ha-card style="padding:16px;">Entität fehlt</ha-card>`;
+    const stateObj = this.config.entity ? this.hass.states[this.config.entity] : undefined;
 
-    let currentTemp: number | string = stateObj.attributes.temperature;
+    let currentTemp: number | string = stateObj?.attributes?.temperature ?? '--';
     if (this.config.temp_sensor) {
         const sensorState = this.hass.states[this.config.temp_sensor];
         if (sensorState && !isNaN(parseFloat(sensorState.state))) currentTemp = sensorState.state;
@@ -425,7 +447,7 @@ class MiniWeatherCard extends LitElement {
             <div class="header">
                 <div class="temp-big">${currentTemp !== undefined ? Math.round(Number(currentTemp)) + "°" : "--"}</div>
                 <div class="header-right">
-                    <ha-icon icon="${this._getIcon(stateObj.state)}" class="main-icon"></ha-icon>
+                    <ha-icon icon="${this._getIcon(stateObj ? stateObj.state : '')}" class="main-icon"></ha-icon>
                     <div class="hl-label">${headerLabel}</div>
                 </div>
             </div>
@@ -497,7 +519,7 @@ class MiniWeatherCard extends LitElement {
 
   static get styles() {
     return css`
-      :host { display: block; height: 100%; }
+      :host { display: block; height: 100%; isolation: isolate; }
       ha-card {
         background: transparent; color: white;
         border-radius: var(--ha-card-border-radius, 12px);
@@ -532,7 +554,10 @@ class MiniWeatherCard extends LitElement {
     `;
   }
 }
-customElements.define("mini-weather-card", MiniWeatherCard);
+if (!customElements.get("slick-minimal-weather-card")) {
+  customElements.define("slick-minimal-weather-card", MiniWeatherCard);
+  console.info("%c slick-minimal-weather-card Registered", "color: green; font-weight: bold;");
+}
 
 class MiniWeatherCardEditor extends LitElement {
   hass!: HomeAssistant;
@@ -574,18 +599,14 @@ class MiniWeatherCardEditor extends LitElement {
     return html`<ha-form .hass=${this.hass} .data=${this._config} .schema=${schema} .computeLabel=${(s: any) => s.label} @value-changed=${this._valueChanged}></ha-form>`; 
   }
 }
-customElements.define("mini-weather-card-editor", MiniWeatherCardEditor);
-
-declare global {
-  interface Window {
-    customCards: Array<{
-      type: string;
-      name: string;
-      preview?: boolean;
-      description?: string;
-    }>;
-  }
+if (!customElements.get("slick-minimal-weather-card-editor")) {
+  customElements.define("slick-minimal-weather-card-editor", MiniWeatherCardEditor);
 }
 
 window.customCards = window.customCards || [];
-window.customCards.push({ type: "mini-weather-card", name: "Apple Style Weather", preview: true, description: "Apple Style Wetter Karte", });
+window.customCards.push({ 
+  type: "slick-minimal-weather-card", 
+  name: "Slick Minimal Weather", 
+  preview: true,
+  description: "Minimalist weather card with history and forecasting." 
+});

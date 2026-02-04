@@ -1,0 +1,8 @@
+type: custom:simple-climate-card
+entity: climate.living_room
+name: "Wohnzimmer Klima"
+sensors:
+  # Optional overrides if you want to use external sensors
+  # temp: sensor.living_room_temperature
+  # target_high: sensor.target_temp_high
+  # target_low: sensor.target_temp_low

@@ -4,6 +4,7 @@
  */
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
+import { LitElement, html } from 'lit';
 import type {
   HomeAssistant,
   WindCompassCardConfig,
@@ -16,7 +17,7 @@ console.info(
   'color: white; background: #000000; font-weight: bold;'
 );
 
-class WindCompassCard extends HTMLElement {
+export class WindCompassCard extends HTMLElement {
   private _hass?: HomeAssistant;
   private config!: WindCompassCardConfig;
   private _resizeObserver?: ResizeObserver;
@@ -46,17 +47,20 @@ class WindCompassCard extends HTMLElement {
   // Layout
   private _pxPerDeg?: number;
 
+  constructor() {
+    super();
+    this.attachShadow({ mode: 'open' });
+  }
+
   static getConfigElement() {
-    return document.createElement('wind-compass-editor');
+    return document.createElement('slick-wind-compass-editor');
   }
 
   static getStubConfig() {
     return {
-      type: 'custom:wind-compass-card',
-      direction_entity: 'sensor.gw2000a_wind_direction_10m_avg',
-      instant_direction_entity: 'sensor.gw2000a_wind_direction',
-      speed_entity: 'sensor.gw2000a_wind_speed',
-      gust_entity: 'sensor.gw2000a_wind_gust',
+      type: 'custom:slick-wind-compass-card',
+      direction_entity: '',
+      speed_entity: '',
       max_speed: 60
     };
   }
@@ -67,10 +71,27 @@ class WindCompassCard extends HTMLElement {
   }
 
   setConfig(config: WindCompassCardConfig) {
-    if (!config.direction_entity) throw new Error('direction_entity is required');
-    if (!config.speed_entity) throw new Error('speed_entity is required');
-    
-    this.config = config;
+    if (!config) throw new Error("Invalid configuration");
+
+    const newConfig = {
+        bucket_size: 5,
+        warn_multiplier: 0.9,
+        max_speed: 30,
+        simple_mode: false,
+        ...config
+    };
+
+    if (newConfig.bucket_size && typeof newConfig.bucket_size !== 'number') throw new Error("bucket_size must be a number");
+    if (newConfig.max_speed && typeof newConfig.max_speed !== 'number') throw new Error("max_speed must be a number");
+
+    this.config = newConfig as WindCompassCardConfig;
+
+    if (this.config.simple_mode) {
+      this.classList.add('simple-mode');
+    } else {
+      this.classList.remove('simple-mode');
+    }
+
     this._recalcBuckets();
   }
 
@@ -94,16 +115,23 @@ class WindCompassCard extends HTMLElement {
   connectedCallback() {
     if (!this.shadowRoot) {
       this.attachShadow({ mode: 'open' });
-      this._render();
     }
-    this.content = this.shadowRoot?.querySelector('.container') as HTMLElement;
     
-    if (this.content) {
-        this._resizeObserver = new ResizeObserver(() => {
-            this._updateDimensions();
-            this._updateVisuals();
-        });
-        this._resizeObserver.observe(this.content);
+    // Ensure render is called if content is missing
+    if (this.shadowRoot && (!this.shadowRoot.innerHTML || this.shadowRoot.innerHTML.trim() === '')) {
+        this._render();
+    }
+
+    if (this.shadowRoot) {
+      this.content = this.shadowRoot.querySelector('.container') as HTMLElement;
+    
+      if (this.content) {
+          this._resizeObserver = new ResizeObserver(() => {
+              this._updateDimensions();
+              this._updateVisuals();
+          });
+          this._resizeObserver.observe(this.content);
+      }
     }
   }
 
@@ -127,6 +155,7 @@ class WindCompassCard extends HTMLElement {
           overflow: hidden;
           box-sizing: border-box;
           position: relative;
+          isolation: isolate;
         }
         
         ha-card {
@@ -174,14 +203,15 @@ class WindCompassCard extends HTMLElement {
         .hist-bar {
           position: absolute;
           bottom: 0;
-          border-top-left-radius: 2px;
-          border-top-right-radius: 2px;
+          border-radius: 4px;
           pointer-events: none;
           transform: none; 
-          border-top: 1.5px solid; 
+          border: none;
           box-sizing: border-box; 
           background: none; 
-          transition: height 0.4s cubic-bezier(0.25, 0.1, 0.25, 1.0), border-color 0.3s ease;
+          transition: height 0.4s cubic-bezier(0.25, 0.1, 0.25, 1.0);
+          overflow: hidden;
+          opacity: 0.9;
         }
 
         .hist-fill {
@@ -192,45 +222,55 @@ class WindCompassCard extends HTMLElement {
 
         .compass-tick {
           position: absolute;
-          top: 0;
-          bottom: 0;
-          width: 1.5px;
-          border-radius: 1px;
+          top: 42px; /* Adjusted to sit below labels */
+          width: 1px;
+          border-radius: 0.5px;
           background: var(--primary-text-color);
-          opacity: 0.1;
+          opacity: 0.2;
           z-index: 2;
         }
 
         .compass-label {
           position: absolute;
-          top: 32px;
+          top: 12px;
           transform: translateX(-50%);
           color: var(--primary-text-color);
-          font-weight: 600;
-          font-size: 13px;
-          letter-spacing: -0.01em;
+          font-weight: 300;
+          font-size: 18px;
+          letter-spacing: 0.5px;
           z-index: 3;
-          opacity: 0.8;
+          line-height: 1;
         }
 
-        /* FLOATING MARKER (Rotes Dreieck) - Zeigt Ist-Wert */
+        /* FLOATING MARKER (Modern Arrow) */
         .compass-marker {
           position: absolute;
           left: 50%; 
-          top: 0; 
-          width: 0;
-          height: 0;
-          border-left: 7px solid transparent;
-          border-right: 7px solid transparent;
-          border-top: 9px solid var(--error-color, #ff3b30);
+          top: 0px; 
+          width: 2px;
+          height: 12px;
+          background: var(--error-color, #ff3b30);
+          border-radius: 1px;
           
-          /* Startet in der Mitte, wird per JS verschoben */
           transform: translateX(-50%); 
-          
-          z-index: 5;
-          filter: drop-shadow(0 2px 4px rgba(0,0,0,0.2));
+          z-index: 20; 
+          filter: drop-shadow(0 0 4px rgba(255, 59, 48, 0.4));
           transition: transform 0.6s cubic-bezier(0.25, 0.1, 0.25, 1.0);
           will-change: transform;
+        }
+        
+        /* Arrowhead */
+        .compass-marker::after {
+          content: '';
+          position: absolute;
+          bottom: -5px;
+          left: 50%;
+          transform: translateX(-50%);
+          width: 0; 
+          height: 0; 
+          border-left: 5px solid transparent;
+          border-right: 5px solid transparent;
+          border-top: 6px solid var(--error-color, #ff3b30);
         }
 
         /* CENTER DOT - Zeigt Durchschnitt (Mitte des Fensters) */
@@ -306,18 +346,20 @@ class WindCompassCard extends HTMLElement {
           align-items: baseline;
           gap: 4px;
           color: var(--primary-text-color);
+          text-shadow: var(--text-shadow, none);
         }
 
         .speed-text .value {
-          font-size: 24px;
-          font-weight: 500;
-          letter-spacing: -0.5px;
+          font-size: 3.5rem;
+          font-weight: 200;
+          letter-spacing: -1px;
+          line-height: 1;
         }
 
         .speed-text .unit {
-          font-size: 14px;
+          font-size: 1.25rem;
           color: var(--secondary-text-color);
-          font-weight: 400;
+          font-weight: 300;
         }
 
         .speed-text .gust-info {
@@ -325,6 +367,88 @@ class WindCompassCard extends HTMLElement {
           font-size: 13px;
           color: var(--secondary-text-color);
           opacity: 0.8;
+        }
+
+        /* --- SIMPLE MODE --- */
+        :host(.simple-mode) {
+          /* Restore card background and shadow to match other cards */
+          overflow: hidden; 
+        }
+
+        :host(.simple-mode) .container {
+           padding: 0;
+           height: 120px; /* Increased to separate text and compass */
+           position: relative;
+        }
+
+        :host(.simple-mode) .compass-container {
+           height: 60px; /* Thinner */
+           margin-top: 60px; /* Pushed down to clear speed text */
+           -webkit-mask-image: linear-gradient(to right, transparent, black 15%, black 85%, transparent);
+           mask-image: linear-gradient(to right, transparent, black 15%, black 85%, transparent);
+        }
+
+        :host(.simple-mode) .compass-tick {
+           top: 42px; /* Pushed down */
+        }
+        
+        :host(.simple-mode) .compass-label {
+           top: 20px; /* Pushed down to clear marker */
+           font-size: 16px;
+        }
+
+        :host(.simple-mode) .compass-marker {
+           top: 0px; /* At the top edge of compass container */
+        }
+
+        :host(.simple-mode) .speed-container {
+           position: absolute;
+           top: 16px;
+           left: 16px;
+           width: auto;
+           height: auto;
+           display: block;
+           z-index: 10;
+        }
+        
+        :host(.simple-mode) .speed-bar-bg {
+           display: none;
+        }
+
+        :host(.simple-mode) .speed-text {
+           display: flex;
+           flex-direction: row;
+           align-items: baseline;
+           justify-content: flex-start;
+           color: var(--primary-text-color);
+           text-shadow: 0 1px 4px rgba(0,0,0,0.5); /* Always shadow for readability over possible map/picture */
+        }
+
+        :host(.simple-mode) .speed-text .value {
+           font-size: 2.5rem; /* Smaller than full mode */
+        }
+        
+        :host(.simple-mode) .speed-text .gust-info {
+           margin-left: 6px;
+           font-size: 14px;
+           opacity: 0.9;
+        }
+
+        /* ALERT MODE (Red Background) */
+        :host(.simple-mode.alert-state) {
+           background: linear-gradient(135deg, rgba(255,59,48,0.8), rgba(200,30,30,0.9)) !important;
+           border-radius: var(--ha-card-border-radius, 12px);
+           box-shadow: 0 4px 20px rgba(255, 59, 48, 0.4);
+        }
+        
+        :host(.simple-mode.alert-state) .speed-text,
+        :host(.simple-mode.alert-state) .compass-label {
+           color: white !important;
+        }
+        
+        :host(.simple-mode.alert-state) .compass-tick {
+           background: white !important;
+           opacity: 0.4;
         }
       </style>
 
@@ -349,7 +473,7 @@ class WindCompassCard extends HTMLElement {
   }
 
   private _updateCard() {
-    if (!this._hass || !this.config) return;
+    if (!this.config) return;
 
     // Entities
     const dirEntity = this.config.direction_entity; // AVG (Tape)
@@ -366,31 +490,37 @@ class WindCompassCard extends HTMLElement {
     this._warnMultiplier = this.config.warn_multiplier !== undefined ? Number(this.config.warn_multiplier) : 0.9;
     this._recalcBuckets();
 
+    // Use dummy values if hass is not ready yet
+    const hass = this._hass;
+
     // States
-    const dirState = this._hass.states[dirEntity];
-    const instDirState = this._hass.states[instantDirEntity];
-    const speedState = this._hass.states[speedEntity];
-    const gustState = entityGust ? this._hass.states[entityGust] : null;
+    const dirState = hass?.states[dirEntity];
+    const instDirState = hass?.states[instantDirEntity];
+    const speedState = hass?.states[speedEntity];
+    const gustState = entityGust && hass ? hass.states[entityGust] : null;
 
     // 1. DURCHSCHNITT (Bewegt das Band)
-    if (dirState) {
+    if (dirState && !isNaN(parseFloat(dirState.state))) {
       this._avgDeg = parseFloat(dirState.state);
-    }
+    } 
     
     // 2. IST-WERT (Bewegt den Marker)
-    if (instDirState) {
+    if (instDirState && !isNaN(parseFloat(instDirState.state))) {
       this._instDeg = parseFloat(instDirState.state);
     } else {
       this._instDeg = this._avgDeg; // Fallback
     }
 
     // Speed Data
-    if (speedState) {
+    if (speedState && !isNaN(parseFloat(speedState.state))) {
       this._currentSpeed = parseFloat(speedState.state);
-      this._currentUnit = speedState.attributes.unit_of_measurement || '';
+      this._currentUnit = speedState.attributes.unit_of_measurement || 'km/h';
+    } else {
+      this._currentSpeed = 0;
+      this._currentUnit = 'km/h';
     }
 
-    if (gustState) {
+    if (gustState && !isNaN(parseFloat(gustState.state))) {
       this._currentGust = parseFloat(gustState.state);
     } else {
       this._currentGust = 0;
@@ -399,16 +529,16 @@ class WindCompassCard extends HTMLElement {
     // Limits
     this._limitRaffstore = 0;
     this._limitRollo = 0;
-    if (entityLimitRaff && this._hass.states[entityLimitRaff]) {
-        this._limitRaffstore = parseFloat(this._hass.states[entityLimitRaff].state);
+    if (hass && entityLimitRaff && hass.states[entityLimitRaff]) {
+        this._limitRaffstore = parseFloat(hass.states[entityLimitRaff].state) || 0;
     }
-    if (entityLimitRollo && this._hass.states[entityLimitRollo]) {
-        this._limitRollo = parseFloat(this._hass.states[entityLimitRollo].state);
+    if (hass && entityLimitRollo && hass.states[entityLimitRollo]) {
+        this._limitRollo = parseFloat(hass.states[entityLimitRollo].state) || 0;
     }
 
     // History alle 5 min
     const now = Date.now();
-    if (now - this._lastHistoryFetch > 300000) {
+    if (now - this._lastHistoryFetch > 300000 && hass) {
       this._lastHistoryFetch = now;
       this._fetchHistory(dirEntity, speedEntity);
     }
@@ -541,18 +671,22 @@ class WindCompassCard extends HTMLElement {
           bar.style.height = `${heightPct * 0.6}%`; 
           bar.style.left = `${pxPos + offset}px`;
           bar.style.width = `${barWidth}px`;
-          bar.style.borderTopColor = usedColor;
+          // Removed borderTopColor - handled by background now
 
           const fill = document.createElement('div');
           fill.className = 'hist-fill';
-          fill.style.background = `linear-gradient(to top, transparent, ${usedColor})`;
+          
+          // Flat design: Solid color instead of gradient
+          fill.style.background = usedColor;
 
           if (isCritical) {
               fill.style.opacity = '1.0';
           } else {
-              // Opacity = Dauer (Häufigkeit)
+              // Opacity = Duration (Frequency)
+              // We keep the opacity logic to visualize frequency weight, 
+              // but the bar itself is a flat color block now.
               const freqRatio = data.duration / maxDur;
-              fill.style.opacity = (0.1 + (freqRatio * 0.9)).toString();
+              fill.style.opacity = (0.4 + (freqRatio * 0.6)).toString(); 
           }
 
           bar.appendChild(fill);
@@ -567,31 +701,57 @@ class WindCompassCard extends HTMLElement {
       tick.style.left = `${pxPos}px`;
 
       if (normalizedDeg % 90 === 0) {
-        tick.style.height = '100%';
-        tick.style.opacity = '0.5';
+        // Major: Label Only
         const label = document.createElement('div');
         label.className = 'compass-label';
         const directions: Record<number, string> = { 0: 'N', 90: 'O', 180: 'S', 270: 'W' };
         label.textContent = directions[normalizedDeg] || '';
         label.style.left = `${pxPos}px`;
         tape.appendChild(label);
-        drawTick = true;
+        
+        // No tick for major directions in minimalistic mode
+        drawTick = false; 
+
       } else if (normalizedDeg % 45 === 0) {
+        // Middle: Medium Tick
         tick.style.height = '10px';
-        tick.style.top = '25px';
-        tick.style.opacity = '0.3';
+        tick.style.opacity = '0.4';
         drawTick = true;
+
       } else if (normalizedDeg % 15 === 0) {
+          // Minor: Small Tick
           tick.style.height = '6px';
-          tick.style.top = '25px';
+          tick.style.opacity = '0.2';
           drawTick = true;
       }
+      
       if (drawTick) tape.appendChild(tick);
     }
   }
 
+  private _interpolateColor(c1: string, c2: string, factor: number): string {
+    const hex = (c: string) => {
+        const h = c.replace('#', '');
+        return parseInt(h.length === 3 ? h.split('').map(x=>x+x).join('') : h, 16);
+    };
+    const r1 = (hex(c1) >> 16) & 255;
+    const g1 = (hex(c1) >> 8) & 255;
+    const b1 = (hex(c1)) & 255;
+    
+    const r2 = (hex(c2) >> 16) & 255;
+    const g2 = (hex(c2) >> 8) & 255;
+    const b2 = (hex(c2)) & 255;
+
+    const r = Math.round(r1 + (r2 - r1) * factor);
+    const g = Math.round(g1 + (g2 - g1) * factor);
+    const b = Math.round(b1 + (b2 - b1) * factor);
+    
+    return `rgb(${r}, ${g}, ${b})`;
+  }
+
   private _updateVisuals() {
     if (!this.shadowRoot || this._avgDeg === undefined || !this._pxPerDeg) return;
+    if (!this.config) return;
 
     // 1. BAND POSITION (Basis: Durchschnitt)
     const tape = this.shadowRoot.querySelector('#tape') as HTMLElement;
@@ -615,17 +775,101 @@ class WindCompassCard extends HTMLElement {
     const limitRollo = this.shadowRoot.querySelector('#limit-rollo') as HTMLElement;
 
     if (this._currentSpeed !== undefined) {
+        // --- LOGIG FOR SIMPLE MODE ---
+        if (this.config.simple_mode) {
+           const limits = [this._limitRaffstore, this._limitRollo].filter(l => l > 0);
+           const minLimit = limits.length > 0 ? Math.min(...limits) : null;
+           
+           if (minLimit && this._currentSpeed >= minLimit) {
+               this.classList.add('alert-state');
+           } else {
+               this.classList.remove('alert-state');
+           }
+           
+           // Allow standard logic to run for gradient background
+           
+           // Special text for simple mode
+           if (speedText) {
+             let html = `
+                <span class="value">${Math.round(this._currentSpeed || 0)}</span>
+                <span class="unit">${this._currentUnit}</span>
+             `;
+             if (this._currentGust > 0) {
+                html += `<span class="gust-info">(${Math.round(this._currentGust)})</span>`;
+             }
+             speedText.innerHTML = html;
+           }
+           // Fall through to standard visual update (skipping bar updates which are hidden anyway)
+        } 
+        
+        // --- STANDARD MODE & SHARED GRADIENT ---
         let pct = (this._currentSpeed / this._maxSpeed) * 100;
         if (pct > 100) pct = 100;
-        if (speedBar) speedBar.style.width = `${pct}%`;
+        
+        if (!this.config.simple_mode && speedBar) {
+             speedBar.style.width = `${pct}%`;
+        }
+
+        // Check for Dark Mode Preference from HA Theme
+        const isDarkMode = this._hass?.themes?.darkMode === true;
+
+        // Dynamic Background Gradient
+        // Low: Bright Creme-Grey (#ffffff -> #e0e0e0)
+        // High: Dark Grey-Blue (#546e7a -> #263238)
+        
+        const intensity = pct / 100;
+        
+        // Define Gradient Colors (Lighter at bottom for modern "uplight" look)
+        let cStartLow, cEndLow;
+        if (isDarkMode) {
+            // Dark Mode
+            cStartLow = '#1c1c1e'; // Dark top
+            cEndLow = '#3a3a3c';   // Lighter bottom
+        } else {
+            // Light Mode
+            cStartLow = '#e0e0e0'; // Grey top
+            cEndLow = '#ffffff';   // White bottom
+        }
+
+        // High Wind Colors (Blue-Grey)
+        const cStartHigh = '#37474f'; // Darker Blue-Grey top
+        const cEndHigh = '#607d8b';   // Lighter Blue-Grey bottom
+        
+        const startColor = this._interpolateColor(cStartLow, cStartHigh, intensity);
+        const endColor = this._interpolateColor(cEndLow, cEndHigh, intensity);
+        
+        // Update host background
+        this.style.background = `linear-gradient(180deg, ${startColor} 0%, ${endColor} 100%)`;
+        
+        // Adjust text and UI colors for contrast
+        // In Dark Mode, we almost always want white text unless intensity pushes us to something very bright (unlikely here)
+        if (isDarkMode || intensity > 0.5) {
+            // Dark Background -> Light Elements
+            this.style.color = 'white';
+            this.style.setProperty('--primary-text-color', 'white');
+            this.style.setProperty('--secondary-text-color', 'rgba(255,255,255,0.7)');
+            this.style.setProperty('--secondary-background-color', 'rgba(255,255,255,0.15)');
+            this.style.setProperty('--ha-card-box-shadow', 'none'); 
+            this.style.setProperty('--text-shadow', '0 1px 4px rgba(0,0,0,0.5)');
+        } else {
+            // Light Mode + Low Intensity -> Dark Elements
+            this.style.color = '#212121';
+            this.style.setProperty('--primary-text-color', '#212121');
+            this.style.setProperty('--secondary-text-color', '#757575');
+            this.style.setProperty('--secondary-background-color', 'rgba(0,0,0,0.1)');
+            this.style.removeProperty('--text-shadow');
+        }
+        
+        // If alert state is active (Red), it overrides this anyway via !important in CSS
         
         let pctGust = (this._currentGust / this._maxSpeed) * 100;
         if (pctGust > 100) pctGust = 100;
         if (gustBar) gustBar.style.width = `${pctGust}%`;
 
-        if (speedText) {
+        // Only update text here if not simple mode (because simple mode has different format)
+        if (!this.config.simple_mode && speedText) {
             let html = `
-                <span class="value">${Math.round(this._currentSpeed)}</span>
+                <span class="value">${Math.round(this._currentSpeed || 0)}</span>
                 <span class="unit">${this._currentUnit}</span>
             `;
             if (this._currentGust > 0) {
@@ -658,13 +902,82 @@ class WindCompassCard extends HTMLElement {
   }
 }
 
-customElements.define('wind-compass-card', WindCompassCard);
+try {
+  if (!customElements.get('slick-wind-compass-card')) {
+    customElements.define('slick-wind-compass-card', WindCompassCard);
+    console.info("%c slick-wind-compass-card Registered", "color: green; font-weight: bold;");
+  }
+} catch (e) {
+  console.error("Failed to register slick-wind-compass-card", e);
+}
+
+class WindCompassEditor extends LitElement {
+  private _config: any;
+  private hass: any;
+
+  static get properties() {
+    return {
+      hass: {},
+      _config: {},
+    };
+  }
+
+  setConfig(config: WindCompassCardConfig) {
+    this._config = config;
+  }
+
+  _valueChanged(ev: CustomEvent) {
+    if (!this._config || !this.hass) return;
+    const newConfig = {
+      ...this._config,
+      ...ev.detail.value,
+    };
+    
+    // Fire event to update card preview
+    const messageEvent = new CustomEvent("config-changed", {
+      detail: { config: newConfig },
+      bubbles: true,
+      composed: true,
+    });
+    this.dispatchEvent(messageEvent);
+  }
+
+  render() {
+    if (!this.hass || !this._config) return html``;
+
+    // Schema for Home Assistant Form
+    const schema = [
+      { name: "direction_entity", label: "Direction Entity", selector: { entity: { domain: "sensor" } } },
+      { name: "speed_entity", label: "Speed Entity", selector: { entity: { domain: "sensor" } } },
+      { name: "gust_entity", label: "Gust Entity (Optional)", selector: { entity: { domain: "sensor" } } },
+      { name: "instant_direction_entity", label: "Instant Dir (opt)", selector: { entity: { domain: "sensor" } } },
+      { name: "max_speed", label: "Max Speed", selector: { number: { mode: "box", min: 0 } } },
+      { name: "simple_mode", label: "Simple Mode", selector: { boolean: {} } },
+      { name: "raffstore_limit_entity", label: "Raffstore Limit (opt)", selector: { entity: { domain: "sensor" } } },
+      { name: "rollo_limit_entity", label: "Rollo Limit (opt)", selector: { entity: { domain: "sensor" } } }
+    ];
+
+    return html`
+      <ha-form
+        .hass=${this.hass}
+        .data=${this._config}
+        .schema=${schema}
+        .computeLabel=${(s: any) => s.label}
+        @value-changed=${this._valueChanged}
+      ></ha-form>
+    `;
+  }
+}
+
+if (!customElements.get('slick-wind-compass-editor')) {
+  customElements.define('slick-wind-compass-editor', WindCompassEditor);
+}
 
 // Register as custom card
 window.customCards = window.customCards || [];
 window.customCards.push({
-  type: 'wind-compass-card',
-  name: 'Wind Compass Card',
+  type: 'slick-wind-compass-card',
+  name: 'Slick Wind Compass',
   preview: true,
   description: 'Apple-style wind direction compass with speed indicator'
 });

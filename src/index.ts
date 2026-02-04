@@ -7,9 +7,11 @@
 import './wind-compass-card';
 import './minimal-weather-card';
 import './squircle-clock-card';
-import './heating-cooling-card';
+import './simple-climate-card';
+import './energy-flow-card';
+import './person-card';
 
 console.info(
-  '%c Lovelace Slick Screen Cards Loaded ',
+  '%c Lovelace Slick Screen Cards Loaded (v0.1.1) ',
   'color: white; background: #607d8b; font-weight: bold;'
 );
