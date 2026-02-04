@@ -4,6 +4,7 @@
  */
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
+import { LitElement, html } from 'lit';
 import type {
   HomeAssistant,
   WindCompassCardConfig,
@@ -71,6 +72,13 @@ class WindCompassCard extends HTMLElement {
     if (!config.speed_entity) throw new Error('speed_entity is required');
     
     this.config = config;
+
+    if (this.config.simple_mode) {
+      this.classList.add('simple-mode');
+    } else {
+      this.classList.remove('simple-mode');
+    }
+
     this._recalcBuckets();
   }
 
@@ -192,43 +200,42 @@ class WindCompassCard extends HTMLElement {
 
         .compass-tick {
           position: absolute;
-          top: 0;
-          bottom: 0;
-          width: 1.5px;
-          border-radius: 1px;
+          top: 42px; /* Adjusted to sit below labels */
+          width: 1px;
+          border-radius: 0.5px;
           background: var(--primary-text-color);
-          opacity: 0.1;
+          opacity: 0.2;
           z-index: 2;
         }
 
         .compass-label {
           position: absolute;
-          top: 32px;
+          top: 12px;
           transform: translateX(-50%);
           color: var(--primary-text-color);
-          font-weight: 600;
-          font-size: 13px;
-          letter-spacing: -0.01em;
+          font-weight: 300;
+          font-size: 18px;
+          letter-spacing: 0.5px;
           z-index: 3;
-          opacity: 0.8;
+          line-height: 1;
         }
 
-        /* FLOATING MARKER (Rotes Dreieck) - Zeigt Ist-Wert */
+        /* FLOATING MARKER (Clean Red Line) */
         .compass-marker {
           position: absolute;
           left: 50%; 
-          top: 0; 
+          top: 5px; 
           width: 0;
           height: 0;
-          border-left: 7px solid transparent;
-          border-right: 7px solid transparent;
-          border-top: 9px solid var(--error-color, #ff3b30);
           
-          /* Startet in der Mitte, wird per JS verschoben */
+          /* Minimalist Triangle */
+          border-left: 5px solid transparent;
+          border-right: 5px solid transparent;
+          border-top: 6px solid var(--error-color, #ff3b30);
+
           transform: translateX(-50%); 
-          
           z-index: 5;
-          filter: drop-shadow(0 2px 4px rgba(0,0,0,0.2));
+          filter: drop-shadow(0 1px 2px rgba(0,0,0,0.2));
           transition: transform 0.6s cubic-bezier(0.25, 0.1, 0.25, 1.0);
           will-change: transform;
         }
@@ -306,18 +313,20 @@ class WindCompassCard extends HTMLElement {
           align-items: baseline;
           gap: 4px;
           color: var(--primary-text-color);
+          text-shadow: var(--text-shadow, none);
         }
 
         .speed-text .value {
-          font-size: 24px;
-          font-weight: 500;
-          letter-spacing: -0.5px;
+          font-size: 3.5rem;
+          font-weight: 200;
+          letter-spacing: -1px;
+          line-height: 1;
         }
 
         .speed-text .unit {
-          font-size: 14px;
+          font-size: 1.25rem;
           color: var(--secondary-text-color);
-          font-weight: 400;
+          font-weight: 300;
         }
 
         .speed-text .gust-info {
@@ -325,6 +334,88 @@ class WindCompassCard extends HTMLElement {
           font-size: 13px;
           color: var(--secondary-text-color);
           opacity: 0.8;
+        }
+
+        /* --- SIMPLE MODE --- */
+        :host(.simple-mode) {
+          /* Restore card background and shadow to match other cards */
+          overflow: hidden; 
+        }
+
+        :host(.simple-mode) .container {
+           padding: 0;
+           height: 120px; /* Increased to separate text and compass */
+           position: relative;
+        }
+
+        :host(.simple-mode) .compass-container {
+           height: 60px; /* Thinner */
+           margin-top: 60px; /* Pushed down to clear speed text */
+           -webkit-mask-image: linear-gradient(to right, transparent, black 15%, black 85%, transparent);
+           mask-image: linear-gradient(to right, transparent, black 15%, black 85%, transparent);
+        }
+
+        :host(.simple-mode) .compass-tick {
+           top: 25px; /* Move up for thinner band */
+        }
+        
+        :host(.simple-mode) .compass-label {
+           top: 0;
+           font-size: 16px;
+        }
+
+        :host(.simple-mode) .compass-marker {
+           top: -5px; /* Adjust marker pos */
+        }
+
+        :host(.simple-mode) .speed-container {
+           position: absolute;
+           top: 16px;
+           left: 16px;
+           width: auto;
+           height: auto;
+           display: block;
+           z-index: 10;
+        }
+        
+        :host(.simple-mode) .speed-bar-bg {
+           display: none;
+        }
+
+        :host(.simple-mode) .speed-text {
+           display: flex;
+           flex-direction: row;
+           align-items: baseline;
+           justify-content: flex-start;
+           color: var(--primary-text-color);
+           text-shadow: 0 1px 4px rgba(0,0,0,0.5); /* Always shadow for readability over possible map/picture */
+        }
+
+        :host(.simple-mode) .speed-text .value {
+           font-size: 2.5rem; /* Smaller than full mode */
+        }
+        
+        :host(.simple-mode) .speed-text .gust-info {
+           margin-left: 6px;
+           font-size: 14px;
+           opacity: 0.9;
+        }
+
+        /* ALERT MODE (Red Background) */
+        :host(.simple-mode.alert-state) {
+           background: linear-gradient(135deg, rgba(255,59,48,0.8), rgba(200,30,30,0.9)) !important;
+           border-radius: var(--ha-card-border-radius, 12px);
+           box-shadow: 0 4px 20px rgba(255, 59, 48, 0.4);
+        }
+        
+        :host(.simple-mode.alert-state) .speed-text,
+        :host(.simple-mode.alert-state) .compass-label {
+           color: white !important;
+        }
+        
+        :host(.simple-mode.alert-state) .compass-tick {
+           background: white !important;
+           opacity: 0.4;
         }
       </style>
 
@@ -567,27 +658,52 @@ class WindCompassCard extends HTMLElement {
       tick.style.left = `${pxPos}px`;
 
       if (normalizedDeg % 90 === 0) {
-        tick.style.height = '100%';
-        tick.style.opacity = '0.5';
+        // Major: Label Only
         const label = document.createElement('div');
         label.className = 'compass-label';
         const directions: Record<number, string> = { 0: 'N', 90: 'O', 180: 'S', 270: 'W' };
         label.textContent = directions[normalizedDeg] || '';
         label.style.left = `${pxPos}px`;
         tape.appendChild(label);
-        drawTick = true;
+        
+        // No tick for major directions in minimalistic mode
+        drawTick = false; 
+
       } else if (normalizedDeg % 45 === 0) {
+        // Middle: Medium Tick
         tick.style.height = '10px';
-        tick.style.top = '25px';
-        tick.style.opacity = '0.3';
+        tick.style.opacity = '0.4';
         drawTick = true;
+
       } else if (normalizedDeg % 15 === 0) {
+          // Minor: Small Tick
           tick.style.height = '6px';
-          tick.style.top = '25px';
+          tick.style.opacity = '0.2';
           drawTick = true;
       }
+      
       if (drawTick) tape.appendChild(tick);
     }
+  }
+
+  private _interpolateColor(c1: string, c2: string, factor: number): string {
+    const hex = (c: string) => {
+        const h = c.replace('#', '');
+        return parseInt(h.length === 3 ? h.split('').map(x=>x+x).join('') : h, 16);
+    };
+    const r1 = (hex(c1) >> 16) & 255;
+    const g1 = (hex(c1) >> 8) & 255;
+    const b1 = (hex(c1)) & 255;
+    
+    const r2 = (hex(c2) >> 16) & 255;
+    const g2 = (hex(c2) >> 8) & 255;
+    const b2 = (hex(c2)) & 255;
+
+    const r = Math.round(r1 + (r2 - r1) * factor);
+    const g = Math.round(g1 + (g2 - g1) * factor);
+    const b = Math.round(b1 + (b2 - b1) * factor);
+    
+    return `rgb(${r}, ${g}, ${b})`;
   }
 
   private _updateVisuals() {
@@ -615,17 +731,87 @@ class WindCompassCard extends HTMLElement {
     const limitRollo = this.shadowRoot.querySelector('#limit-rollo') as HTMLElement;
 
     if (this._currentSpeed !== undefined) {
+        // --- LOGIG FOR SIMPLE MODE ---
+        if (this.config.simple_mode) {
+           const limits = [this._limitRaffstore, this._limitRollo].filter(l => l > 0);
+           const minLimit = limits.length > 0 ? Math.min(...limits) : null;
+           
+           if (minLimit && this._currentSpeed >= minLimit) {
+               this.classList.add('alert-state');
+           } else {
+               this.classList.remove('alert-state');
+           }
+           
+           // Allow standard logic to run for gradient background
+           
+           // Special text for simple mode
+           if (speedText) {
+             let html = `
+                <span class="value">${Math.round(this._currentSpeed || 0)}</span>
+                <span class="unit">${this._currentUnit}</span>
+             `;
+             if (this._currentGust > 0) {
+                html += `<span class="gust-info">(${Math.round(this._currentGust)})</span>`;
+             }
+             speedText.innerHTML = html;
+           }
+           // Fall through to standard visual update (skipping bar updates which are hidden anyway)
+        } 
+        
+        // --- STANDARD MODE & SHARED GRADIENT ---
         let pct = (this._currentSpeed / this._maxSpeed) * 100;
         if (pct > 100) pct = 100;
-        if (speedBar) speedBar.style.width = `${pct}%`;
+        
+        if (!this.config.simple_mode && speedBar) {
+             speedBar.style.width = `${pct}%`;
+        }
+
+        // Dynamic Background Gradient
+        // Low: Bright Creme-Grey (#ffffff -> #e0e0e0)
+        // Low: Bright Creme-Grey (#ffffff -> #e0e0e0)
+        // High: Dark Grey-Blue (#546e7a -> #263238)
+        
+        const intensity = pct / 100;
+        
+        const cStartLow = '#ffffff';
+        const cStartHigh = '#546e7a';
+        
+        const cEndLow = '#e0e0e0';
+        const cEndHigh = '#263238'; // Dark Blue Grey
+        
+        const startColor = this._interpolateColor(cStartLow, cStartHigh, intensity);
+        const endColor = this._interpolateColor(cEndLow, cEndHigh, intensity);
+        
+        // Update host background
+        this.style.background = `linear-gradient(180deg, ${startColor} 0%, ${endColor} 100%)`;
+        
+        // Adjust text and UI colors for contrast
+        if (intensity > 0.5) {
+            // Dark Background -> Light Elements
+            this.style.color = 'white';
+            this.style.setProperty('--primary-text-color', 'white');
+            this.style.setProperty('--secondary-text-color', 'rgba(255,255,255,0.7)');
+            this.style.setProperty('--secondary-background-color', 'rgba(255,255,255,0.15)');
+            this.style.setProperty('--ha-card-box-shadow', 'none'); // Optional: darker cards might not need shadow
+            this.style.setProperty('--text-shadow', '0 1px 4px rgba(0,0,0,0.5)');
+        } else {
+            // Light Background -> Dark Elements
+            // We force dark text because the background is light creme/white
+            this.style.color = '#212121';
+            this.style.setProperty('--primary-text-color', '#212121');
+            this.style.setProperty('--secondary-text-color', '#757575');
+            this.style.setProperty('--secondary-background-color', 'rgba(0,0,0,0.1)');
+            this.style.removeProperty('--text-shadow');
+        }
         
         let pctGust = (this._currentGust / this._maxSpeed) * 100;
         if (pctGust > 100) pctGust = 100;
         if (gustBar) gustBar.style.width = `${pctGust}%`;
 
-        if (speedText) {
+        // Only update text here if not simple mode (because simple mode has different format)
+        if (!this.config.simple_mode && speedText) {
             let html = `
-                <span class="value">${Math.round(this._currentSpeed)}</span>
+                <span class="value">${Math.round(this._currentSpeed || 0)}</span>
                 <span class="unit">${this._currentUnit}</span>
             `;
             if (this._currentGust > 0) {
@@ -659,6 +845,66 @@ class WindCompassCard extends HTMLElement {
 }
 
 customElements.define('wind-compass-card', WindCompassCard);
+
+class WindCompassEditor extends LitElement {
+  private _config: any;
+  private hass: any;
+
+  static get properties() {
+    return {
+      hass: {},
+      _config: {},
+    };
+  }
+
+  setConfig(config: WindCompassCardConfig) {
+    this._config = config;
+  }
+
+  _valueChanged(ev: CustomEvent) {
+    if (!this._config || !this.hass) return;
+    const newConfig = {
+      ...this._config,
+      ...ev.detail.value,
+    };
+    
+    // Fire event to update card preview
+    const messageEvent = new CustomEvent("config-changed", {
+      detail: { config: newConfig },
+      bubbles: true,
+      composed: true,
+    });
+    this.dispatchEvent(messageEvent);
+  }
+
+  render() {
+    if (!this.hass || !this._config) return html``;
+
+    // Schema for Home Assistant Form
+    const schema = [
+      { name: "direction_entity", label: "Direction Entity", selector: { entity: { domain: "sensor" } } },
+      { name: "speed_entity", label: "Speed Entity", selector: { entity: { domain: "sensor" } } },
+      { name: "gust_entity", label: "Gust Entity (Optional)", selector: { entity: { domain: "sensor" } } },
+      { name: "instant_direction_entity", label: "Instant Dir (opt)", selector: { entity: { domain: "sensor" } } },
+      { name: "max_speed", label: "Max Speed", selector: { number: { mode: "box", min: 0 } } },
+      { name: "simple_mode", label: "Simple Mode", selector: { boolean: {} } },
+      { name: "raffstore_limit_entity", label: "Raffstore Limit (opt)", selector: { entity: { domain: "sensor" } } },
+      { name: "rollo_limit_entity", label: "Rollo Limit (opt)", selector: { entity: { domain: "sensor" } } }
+    ];
+
+    return html`
+      <ha-form
+        .hass=${this.hass}
+        .data=${this._config}
+        .schema=${schema}
+        .computeLabel=${(s: any) => s.label}
+        @value-changed=${this._valueChanged}
+      ></ha-form>
+    `;
+  }
+}
+
+customElements.define('wind-compass-editor', WindCompassEditor);
 
 // Register as custom card
 window.customCards = window.customCards || [];

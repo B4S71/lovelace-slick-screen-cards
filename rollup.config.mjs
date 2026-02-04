@@ -97,5 +97,24 @@ export default [
         }
       })
     ]
+  },
+  {
+    input: 'src/simple-climate-card.ts',
+    output: {
+      file: 'dist/simple-climate-card.js',
+      format: 'es',
+      sourcemap: true
+    },
+    plugins: [
+      resolve(),
+      typescript({
+        tsconfig: './tsconfig.json'
+      }),
+      terser({
+        format: {
+          comments: false
+        }
+      })
+    ]
   }
 ];

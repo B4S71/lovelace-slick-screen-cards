@@ -46,6 +46,7 @@ export interface WindCompassCardConfig extends LovelaceCardConfig {
     rollo_limit_entity?: string;
     warn_multiplier?: number;
     bucket_size?: number;
+    simple_mode?: boolean;
 }
 export interface HistoryState {
     entity_id: string;
@@ -96,5 +97,15 @@ export interface HeatingCoolingCardConfig extends LovelaceCardConfig {
     max_temp?: number;
     unit?: string;
     simple_mode?: boolean;
+}
+export interface SimpleClimateCardConfig extends LovelaceCardConfig {
+    type: 'custom:simple-climate-card';
+    entity: string;
+    name?: string;
+    sensors?: {
+        temp?: string;
+        target_high?: string;
+        target_low?: string;
+    };
 }
 //# sourceMappingURL=types.d.ts.map
