@@ -49,8 +49,6 @@ export class PersonCard extends LitElement {
 
   constructor() {
     super();
-    // Debug logging for instantiation
-    console.info("DEBUG: PersonCard constructor called!");
   }
 
   getCardSize() {
@@ -221,26 +219,17 @@ export class PersonCard extends LitElement {
   `;
 }
 
-// Debug logging and Robust Registration
-console.info("DEBUG: Loading PersonCard module.");
-
-// Explicit global scope access
+// Robust Registration
 const registry = window.customElements;
 const existingClass = registry.get('slick-person-card');
 
 try {
   if (!existingClass) {
     registry.define('slick-person-card', PersonCard);
-    console.info("%c slick-person-card Registered Successfully", "color: green; font-weight: bold;");
-  } else {
-    console.info("slick-person-card already registered.");
   }
 } catch (e) {
-  console.error("CRITICAL FAILURE: Failed to register slick-person-card", e);
+  console.error("Failed to register slick-person-card", e);
 }
-
-// Global debug helper
-(window as any).SlickPersonCard = PersonCard;
 
 class PersonCardEditor extends LitElement {
   hass!: HomeAssistant;
