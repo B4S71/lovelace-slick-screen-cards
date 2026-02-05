@@ -199,7 +199,7 @@ export class EnergyFlowCard extends LitElement {
     
     // mdi-transmission-tower (Base)
     const iconGridPathBase = "M8 2L6 5V8H7L6 10H4L3 12H1V14H6L7 16H8V22H10V16H11L12 14H17V12H16L15 10H13L12 8H13V5L11 2H8M11 14H8L7 12H12L11 14M11 10H8L7 8H12L11 10Z";
-    let iconGridPath = iconGridPathBase;
+    const iconGridPath = iconGridPathBase;
     
     // Logic for Import/Export Icon variants can go here (using base for both now)
     
