@@ -165,11 +165,11 @@ export class EnergyFlowCard extends LitElement {
 
     // Bottom Color: Consumption vs Production
     // If Home Consumption > Solar Production (Deficit) -> Grey
-    // If Home Consumption < Solar Production (Surplus) -> Green
+    // If Home Consumption < Solar Production (Surplus) -> Blue
     if (home > solar) {
         bottomColor = '#455a64'; // Grey
     } else {
-        bottomColor = '#2e7d32'; // Green
+        bottomColor = '#1976d2'; // Blue (formerly Green #2e7d32)
     }
     
     // Balanced State Override: "Everything is just an orange gradient"
@@ -180,11 +180,8 @@ export class EnergyFlowCard extends LitElement {
     const gridTolerance = isFullOrCharging ? 150 : 50;
 
     if (solar > 50 && grid >= 0 && grid <= gridTolerance) {
-        // Gradient: Bottom slightly brighter than top
-        if (solar < 1000) bottomColor = '#f57c00';      // Dark Orange -> Medium
-        else if (solar < 2500) bottomColor = '#ffa000'; // Medium -> Amber
-        else if (solar < 5000) bottomColor = '#ffc107'; // Amber -> Bright
-        else bottomColor = '#ffe082';                   // Bright -> Pale Yellow
+        // Balanced Mode -> Blue Gradient
+        bottomColor = '#2196f3'; // Bright Blue
     }
 
     // Gradient: Lighter at bottom (180deg)
@@ -198,8 +195,15 @@ export class EnergyFlowCard extends LitElement {
     }
 
     // Icons
-    const iconSolar = html`<svg viewBox="0 0 24 24"><path fill="currentColor" d="M12,7L10,11H14L12,7M12,2A10,10 0 0,1 22,12A10,10 0 0,1 12,22A10,10 0 0,1 2,12A10,10 0 0,1 12,2M12,4A8,8 0 0,0 4,12A8,8 0 0,0 12,20A8,8 0 0,0 20,12A8,8 0 0,0 12,4M12,5L16,13H13V19L9,11H12V5Z"/></svg>`; // Sun
-    const iconGrid = html`<svg viewBox="0 0 24 24"><path fill="currentColor" d="M10.59,4.25L10,5.41L7.17,10.6C6.5,11.75 7.17,13.25 8.5,13.25H11V19L11.59,17.84L14.41,12.6C15.08,11.45 14.41,10 13.08,10H10.59V4.25Z"/></svg>`; // Bolt
+    const iconSolar = html`<svg viewBox="0 0 24 24"><path fill="currentColor" d="M3.55,19L2,14H9.17L12,19H3.55M19.55,14L22,19H14.83L12,14H19.55M11.5,6L8.5,11H15.5L12.5,6H11.5M10.83,4L7,11H3L8,4H10.83M13.17,4H16L21,11H17L13.17,4Z"/></svg>`; // mdi-solar-power-variant
+    
+    // mdi-transmission-tower (Base)
+    const iconGridPathBase = "M8 2L6 5V8H7L6 10H4L3 12H1V14H6L7 16H8V22H10V16H11L12 14H17V12H16L15 10H13L12 8H13V5L11 2H8M11 14H8L7 12H12L11 14M11 10H8L7 8H12L11 10Z";
+    let iconGridPath = iconGridPathBase;
+    
+    // Logic for Import/Export Icon variants can go here (using base for both now)
+    
+    const iconGrid = html`<svg viewBox="0 0 24 24"><path fill="currentColor" d="${iconGridPath}"/></svg>`; 
     const iconHome = html`<svg viewBox="0 0 24 24"><path fill="currentColor" d="M10,20V14H14V20H19V12H22L12,3L2,12H5V20H10Z"/></svg>`; // Home
     
     // --- RESPONSIVE MODES ---
@@ -211,12 +215,11 @@ export class EnergyFlowCard extends LitElement {
     // Battery Icon Logic
     let iconBattPath = "M16 20H8V6H16M16.67 4H15V2H9V4H7.33C6.6 4 6 4.6 6 5.33V20.67C6 21.4 6.6 22 7.33 22H16.67C17.4 22 18 21.4 18 20.67V5.33C18 4.6 17.4 4 16.67 4Z"; // Default Battery
     if (isCharging) {
-        // mdi-battery-arrow-down
-        iconBattPath = "M18.3,10.74L16.89,9.33L12,14.22V6H10V14.22L5.11,9.33L3.7,10.74L11,18.04L18.3,10.74M16.67,4H15V2H9V4H7.33C6.6,4 6,4.6 6,5.33V20.67C6,21.4 6.6,22 7.33,22H16.67C17.4,22 18,21.4 18,20.67V5.33C18,4.6 17.4,4 16.67,4Z"; // Approximation or actual path
-        // Checking commonly available paths for battery-arrow-down... 
+        // mdi-battery-arrow-up (Charging - Increasing)
+        iconBattPath = "M16.67 4H15V2H9V4H7.33C6.6 4 6 4.6 6 5.33V20.67C6 21.4 6.6 22 7.33 22H16.67C17.4 22 18 21.4 18 20.67V5.33C18 4.6 17.4 4 16.67 4M12 9L16 13H13V18H11V13H8L12 9Z";
         // Using a composite path to ensure it looks right.
         // M17 14L12 19L7 14H10V4H14V14H17M16.6 4H15V2H9V4H7.3C6.6 4 6 4.6 6 5.3V20.6C6 21.4 6.7 22 7.3 22H16.6C17.3 22 18 21.4 18 20.6V5.3C18 4.6 17.4 4 16.6 4
-        iconBattPath = "M12.92 15.61L12.92 10.46L14.96 10.46L11.5 6L8.04 10.46L10.08 10.46L10.08 15.61L12.92 15.61M16.67 4H15V2H9V4H7.33C6.6 4 6 4.6 6 5.33V20.67C6 21.4 6.6 22 7.33 22H16.67C17.4 22 18 21.4 18 20.67V5.33C18 4.6 17.4 4 16.67 4Z"; // actually this is just a guess.
+
         // Let's use the actual mdi-battery-charging (lightning) or mdi-arrow-down
         // User asked for ARROW DOWN
         // Path for Arrow Down: M11,4H13V16L18.5,10.5L19.92,11.92L12,19.84L4.08,11.92L5.5,10.5L11,16V4Z
@@ -224,7 +227,7 @@ export class EnergyFlowCard extends LitElement {
         // Let's stick to the generic one for now but distinct.
         // I will use `mdi-battery-charging` (Flash) as it's standard unless I find the path.
         // Correct path for mdi-battery-arrow-down:
-        iconBattPath = "M16.67 4H15V2H9V4H7.33C6.6 4 6 4.6 6 5.33V20.67C6 21.4 6.6 22 7.33 22H16.67C17.4 22 18 21.4 18 20.67V5.33C18 4.6 17.4 4 16.67 4M12 18L8 14H11V9H13V14H16L12 18Z";
+
     } else if (isDischarging) {
         // mdi-battery-arrow-up
         iconBattPath = "M16.67 4H15V2H9V4H7.33C6.6 4 6 4.6 6 5.33V20.67C6 21.4 6.6 22 7.33 22H16.67C17.4 22 18 21.4 18 20.67V5.33C18 4.6 17.4 4 16.67 4M12 9L16 13H13V18H11V13H8L12 9Z";
