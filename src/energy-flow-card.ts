@@ -55,6 +55,31 @@ export class EnergyFlowCard extends LitElement {
   private _cachedGradients: string[] = ['', ''];
   private _activeIndex: number = 0;
   private _displayedGradient: string | null = null;
+  
+  // Responsive State
+  private _resizeObserver?: ResizeObserver;
+  private _width: number = 0;
+  private _height: number = 0;
+
+  public connectedCallback() {
+      super.connectedCallback();
+      this._resizeObserver = new ResizeObserver(entries => {
+          for (const entry of entries) {
+              const r = entry.contentRect;
+              this._width = r.width;
+              this._height = r.height;
+              this.requestUpdate();
+          }
+      });
+      this._resizeObserver.observe(this);
+  }
+  
+  public disconnectedCallback() {
+      if (this._resizeObserver) {
+          this._resizeObserver.disconnect();
+      }
+      super.disconnectedCallback();
+  }
 
   // --- HELPER ---
   private _getState(entity?: string): number {
@@ -177,6 +202,12 @@ export class EnergyFlowCard extends LitElement {
     const iconGrid = html`<svg viewBox="0 0 24 24"><path fill="currentColor" d="M10.59,4.25L10,5.41L7.17,10.6C6.5,11.75 7.17,13.25 8.5,13.25H11V19L11.59,17.84L14.41,12.6C15.08,11.45 14.41,10 13.08,10H10.59V4.25Z"/></svg>`; // Bolt
     const iconHome = html`<svg viewBox="0 0 24 24"><path fill="currentColor" d="M10,20V14H14V20H19V12H22L12,3L2,12H5V20H10Z"/></svg>`; // Home
     
+    // --- RESPONSIVE MODES ---
+    // Tiny: H < 120 OR W < 200 (Minimal content)
+    // Small: H < 200 (Compressed layout)
+    const isTiny = this._height > 0 && (this._height < 120 || this._width < 200);
+    const isSmall = this._height > 0 && !isTiny && this._height < 210;
+
     // Battery Icon Logic
     let iconBattPath = "M16 20H8V6H16M16.67 4H15V2H9V4H7.33C6.6 4 6 4.6 6 5.33V20.67C6 21.4 6.6 22 7.33 22H16.67C17.4 22 18 21.4 18 20.67V5.33C18 4.6 17.4 4 16.67 4Z"; // Default Battery
     if (isCharging) {
@@ -201,44 +232,63 @@ export class EnergyFlowCard extends LitElement {
     const iconBatt = html`<svg viewBox="0 0 24 24"><path fill="currentColor" d="${iconBattPath}"/></svg>`;
 
     return html`
-      <ha-card>
+      <ha-card class="${isTiny ? 'tiny' : ''} ${isSmall ? 'small' : ''}">
         <div class="bg-layer" style="background: ${this._cachedGradients[0]}; opacity: ${this._activeIndex === 0 ? 1 : 0}"></div>
         <div class="bg-layer" style="background: ${this._cachedGradients[1]}; opacity: ${this._activeIndex === 1 ? 1 : 0}"></div>
-        <div class="content">
-          <div class="header">
-            <span class="title">${this.config.title}</span>
-            <div class="badges">
-                 ${autarky !== null ? html`<span class="status-badge" title="Autarkie"><span class="badge-label">AUT</span> ${Math.round(autarky)}%</span>` : ''}
-                 ${selfCons !== null ? html`<span class="status-badge" title="Eigenverbrauch"><span class="badge-label">EIG</span> ${Math.round(selfCons)}%</span>` : ''}
-                 <span class="status-badge">${isExporting ? 'Export' : isImporting ? 'Import' : 'Balance'}</span>
+        
+        <!-- Tiny Mode Battery Indicator (Top Right) -->
+        ${isTiny && hasBattery ? html`
+            <div class="status-badge" style="position: absolute; top: 6px; right: 8px; z-index: 2; display: flex; align-items: center; gap: 4px;">
+                <span style="color: ${soc < 20 ? '#ff3b30' : 'inherit'}; display: flex; width: 14px;">${iconBatt}</span>
+                <span>${Math.round(soc)}%</span>
             </div>
-          </div>
+        ` : ''}
+
+        <div class="content">
+          ${!isTiny ? html`
+              <div class="header">
+                <span class="title">${this.config.title}</span>
+                <div class="badges">
+                     ${autarky !== null ? html`<span class="status-badge" title="Autarkie"><span class="badge-label">AUT</span> ${Math.round(autarky)}%</span>` : ''}
+                     ${selfCons !== null ? html`<span class="status-badge" title="Eigenverbrauch"><span class="badge-label">EIG</span> ${Math.round(selfCons)}%</span>` : ''}
+                     <span class="status-badge">${isExporting ? 'Export' : isImporting ? 'Import' : 'Balance'}</span>
+                     
+                     <!-- Small Mode Battery Badge (Inline) -->
+                     ${isSmall && hasBattery ? html`
+                        <span class="status-badge" style="display: inline-flex; align-items: center; gap: 4px; padding-left: 6px;">
+                            <span style="color: ${soc < 20 ? '#ff3b30' : 'inherit'}; display: flex; width: 14px;">${iconBatt}</span>
+                            ${Math.round(soc)}%
+                        </span>
+                     ` : ''}
+                </div>
+              </div>
+          ` : ''}
 
           <div class="main-stats">
             <!-- SOLAR (Left) -->
             <div class="stat-block solar ${solar > 10 ? 'active' : ''}">
               <div class="icon-circle solar-icon">${iconSolar}</div>
               <div class="stat-value">${this._formatPower(solar)}</div>
-              <div class="stat-label">Solar</div>
+              ${!isTiny ? html`<div class="stat-label">Solar</div>` : ''}
             </div>
 
-            <!-- HOME (Center Big) -->
+            <!-- HOME (Center) -->
             <div class="stat-block home">
               <div class="icon-circle home-icon">${iconHome}</div>
               <div class="stat-value big">${this._formatPower(home)}</div>
-              <div class="stat-label">Haus</div>
+              ${!isTiny ? html`<div class="stat-label">Haus</div>` : ''}
             </div>
 
             <!-- GRID (Right) -->
             <div class="stat-block grid ${Math.abs(grid) > 10 ? 'active' : ''}">
               <div class="icon-circle grid-icon">${iconGrid}</div>
               <div class="stat-value">${this._formatPower(Math.abs(grid))}</div>
-              <span class="stat-label">${grid > 0 ? 'Bezug' : 'Einspeisung'}</span>
+              ${!isTiny ? html`<span class="stat-label">${grid > 0 ? 'Bezug' : 'Einsp.'}</span>` : ''}
             </div>
           </div>
 
-          <!-- BATTERY (Bottom) -->
-          ${hasBattery ? html`
+          <!-- BATTERY (Bottom - Only Large Mode) -->
+          ${hasBattery && !isTiny && !isSmall ? html`
             <div class="battery-section">
                 <div class="batt-info">
                    <span class="batt-icon" style="color: ${soc < 20 ? '#ff3b30' : 'inherit'}">${iconBatt}</span>
@@ -429,6 +479,93 @@ export class EnergyFlowCard extends LitElement {
         border-radius: 3px;
         transition: width 0.5s ease;
       }
+
+      /* Tiny Mode */
+      ha-card.tiny .content {
+        padding: 4px;
+        justify-content: center;
+        align-items: center;
+        position: relative;
+      }
+      
+      ha-card.tiny .main-stats {
+        margin: 0;
+        width: 100%;
+        display: flex; 
+        align-items: center;
+        justify-content: space-evenly;
+        flex-direction: row;
+        gap: 4px;
+      }
+      
+      ha-card.tiny .stat-block {
+          flex: 0 1 auto;
+          margin: 0;
+          opacity: 0.9;
+          transform: none;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+      }
+      
+      /* Specific override for Tiny Home to not be special */
+      ha-card.tiny .stat-block.home {
+        transform: none;
+        flex: 0 1 auto;
+      }
+
+      ha-card.tiny .icon-circle {
+        width: 22px; height: 22px;
+        margin-bottom: 2px;
+        background: rgba(255,255,255,0.1);
+      }
+      ha-card.tiny .icon-circle svg { width: 14px; height: 14px; }
+      
+      ha-card.tiny .stat-value {
+        font-size: 0.85rem; 
+        font-weight: 600;
+        line-height: 1;
+      }
+      ha-card.tiny .stat-value.big {
+        font-size: 0.9rem;
+        margin: 0;
+      }
+
+      /* Small Mode */
+      ha-card.small .content { 
+        padding: 8px 12px; 
+      }
+      ha-card.small .header { margin-bottom: 4px; }
+      ha-card.small .title { font-size: 0.95rem; }
+      
+      ha-card.small .main-stats {
+        justify-content: space-between;
+        align-items: center; /* Vertically align all */
+        margin-bottom: 0;
+        flex-grow: 1;
+      }
+      
+      ha-card.small .stat-block {
+         transform: none !important;
+         opacity: 0.9;
+         display: flex;
+         flex-direction: column;
+         align-items: center;
+      }
+      
+      ha-card.small .stat-block.home {
+         flex: 1;
+         transform: none; /* Flatten hierarchy */
+      }
+      
+      /* Equalize icons in Small Mode */
+      ha-card.small .icon-circle { width: 32px; height: 32px; margin-bottom: 4px; }
+      ha-card.small .home-icon { width: 32px; height: 32px; } 
+      ha-card.small .icon-circle svg { width: 18px; height: 18px; }
+      
+      ha-card.small .stat-value { font-size: 1rem; }
+      ha-card.small .stat-value.big { font-size: 1.1rem; margin-bottom: 0; }
+      ha-card.small .stat-label { font-size: 0.75rem; margin-top: 2px; }
     `;
   }
 }
