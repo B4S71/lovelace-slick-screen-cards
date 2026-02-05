@@ -217,20 +217,9 @@ export class EnergyFlowCard extends LitElement {
     if (isCharging) {
         // mdi-battery-arrow-up (Charging - Increasing)
         iconBattPath = "M16.67 4H15V2H9V4H7.33C6.6 4 6 4.6 6 5.33V20.67C6 21.4 6.6 22 7.33 22H16.67C17.4 22 18 21.4 18 20.67V5.33C18 4.6 17.4 4 16.67 4M12 9L16 13H13V18H11V13H8L12 9Z";
-        // Using a composite path to ensure it looks right.
-        // M17 14L12 19L7 14H10V4H14V14H17M16.6 4H15V2H9V4H7.3C6.6 4 6 4.6 6 5.3V20.6C6 21.4 6.7 22 7.3 22H16.6C17.3 22 18 21.4 18 20.6V5.3C18 4.6 17.4 4 16.6 4
-
-        // Let's use the actual mdi-battery-charging (lightning) or mdi-arrow-down
-        // User asked for ARROW DOWN
-        // Path for Arrow Down: M11,4H13V16L18.5,10.5L19.92,11.92L12,19.84L4.08,11.92L5.5,10.5L11,16V4Z
-        // I will just put an arrow next to the battery or overlay.
-        // Let's stick to the generic one for now but distinct.
-        // I will use `mdi-battery-charging` (Flash) as it's standard unless I find the path.
-        // Correct path for mdi-battery-arrow-down:
-
     } else if (isDischarging) {
-        // mdi-battery-arrow-up
-        iconBattPath = "M16.67 4H15V2H9V4H7.33C6.6 4 6 4.6 6 5.33V20.67C6 21.4 6.6 22 7.33 22H16.67C17.4 22 18 21.4 18 20.67V5.33C18 4.6 17.4 4 16.67 4M12 9L16 13H13V18H11V13H8L12 9Z";
+        // mdi-battery-arrow-down (Discharging - Decreasing)
+        iconBattPath = "M16.67 4H15V2H9V4H7.33C6.6 4 6 4.6 6 5.33V20.67C6 21.4 6.6 22 7.33 22H16.67C17.4 22 18 21.4 18 20.67V5.33C18 4.6 17.4 4 16.67 4M12 18L8 14H11V9H13V14H16L12 18Z";
     }
     const iconBatt = html`<svg viewBox="0 0 24 24"><path fill="currentColor" d="${iconBattPath}"/></svg>`;
 
