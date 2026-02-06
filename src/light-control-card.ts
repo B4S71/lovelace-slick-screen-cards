@@ -28,7 +28,7 @@ export class LightControlCard extends LitElement {
 
   // Internal state
   _interacting = false;
-  _activeSlider: { entityId: string, type: 'position' | 'tilt' } | null = null;
+  _activeSlider: { entityId: string, type: 'position' | 'tilt', startX: number, startVal: number } | null = null;
   private _pointerStartTime = 0;
   private _pointerStartX = 0;
   private _pointerStartY = 0;
@@ -149,12 +149,22 @@ export class LightControlCard extends LitElement {
     // or we could realtime update? The previous code had realtime updates logic but only for numbers.
   }
 
-  private _handleSliderDown(e: PointerEvent, entityId: string, type: 'position' | 'tilt') {
+  private _handleSliderDown(e: PointerEvent, entityId: string, type: 'position' | 'tilt', currentVal: number) {
       e.stopPropagation();
       const target = e.currentTarget as HTMLElement;
+      // Only allow dragging if clicking the handle area (or we treat the whole things as a slider but relative?)
+      // User said "not a click onto target". So let's implement relative drag or handle-only drag.
+      // Let's go with: Click anywhere starts drag, but doesn't jump. It grabs the current handle and moves it relative to your finger?
+      // Or "swipe-to-start" style usually means grabbing the handle.
+      
+      this._activeSlider = { 
+          entityId, 
+          type, 
+          startX: e.clientX, 
+          startVal: currentVal 
+      };
+      
       target.setPointerCapture(e.pointerId);
-      this._activeSlider = { entityId, type };
-      this._processSliderMove(e, target);
   }
 
   private _handleSliderMove(e: PointerEvent) {
@@ -168,28 +178,27 @@ export class LightControlCard extends LitElement {
       }
   }
 
-  private _processSliderMove(e: PointerEvent, target: HTMLElement) {
-      const rect = target.getBoundingClientRect();
-      // Calculate percentage 0..100
-      const x = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-      const percentage = Math.round(x * 100);
-
-      const { entityId, type } = this._activeSlider!;
+  private _processSliderMove(e: PointerEvent, slider: HTMLElement) {
+      const rect = slider.getBoundingClientRect();
+      const { startX, startVal, entityId, type } = this._activeSlider!;
+      
+      // Calculate delta in %
+      const deltaPixels = e.clientX - startX;
+      const deltaPercent = (deltaPixels / rect.width) * 100;
+      
+      let newVal = Math.max(0, Math.min(100, Math.round(startVal + deltaPercent)));
 
       if (type === 'position') {
           this.hass.callService('cover', 'set_cover_position', {
               entity_id: entityId,
-              position: percentage
+              position: newVal
           });
       } else {
           this.hass.callService('cover', 'set_cover_tilt_position', {
               entity_id: entityId,
-              tilt_position: percentage
+              tilt_position: newVal
           });
       }
-      // Note: In a real app we might want to throttle this call or update local state for smoothness
-      // and call service on UP. But for "slick" feel, immediate feedback is often desired if network allows.
-      // Optimistic UI updates handle the jumpiness.
   }
 
   private _applyLightState(e: PointerEvent, card: Element) {
@@ -309,20 +318,22 @@ export class LightControlCard extends LitElement {
             <div class="cover-sliders">
                 <!-- Position Slider -->
                 <div class="slider-control" 
-                     @pointerdown=${(e: PointerEvent) => this._handleSliderDown(e, entityId, 'position')}
+                     @pointerdown=${(e: PointerEvent) => this._handleSliderDown(e, entityId, 'position', position)}
                 >
-                     <div class="slider-bg"></div>
+                     <div class="slider-track"></div>
                      <div class="slider-fill" style="width: ${position}%"></div>
+                     <div class="slider-handle" style="left: ${position}%"></div>
                      <div class="slider-label">Pos: ${position}%</div>
                 </div>
 
                 <!-- Tilt Slider -->
                 ${supportsTilt ? html`
                 <div class="slider-control" 
-                     @pointerdown=${(e: PointerEvent) => this._handleSliderDown(e, entityId, 'tilt')}
+                     @pointerdown=${(e: PointerEvent) => this._handleSliderDown(e, entityId, 'tilt', tilt)}
                 >
-                     <div class="slider-bg"></div>
+                     <div class="slider-track"></div>
                      <div class="slider-fill" style="width: ${tilt}%"></div>
+                     <div class="slider-handle" style="left: ${tilt}%"></div>
                      <div class="slider-label">Tilt: ${tilt}%</div>
                 </div>
                 ` : ''}
@@ -431,41 +442,60 @@ export class LightControlCard extends LitElement {
       .cover-sliders {
           flex: 1;
           display: flex;
-          flex-direction: column;
-          gap: 6px;
+          flex-direction: row;
+          gap: 12px;
       }
       
       .slider-control {
           position: relative;
-          height: 24px;
-          border-radius: 12px;
-          overflow: hidden;
-          background: rgba(255,255,255,0.1);
-          cursor: pointer;
+          height: 36px;
+          border-radius: 18px;
+          background: rgba(0,0,0,0.3);
+          cursor: grab;
           touch-action: none;
+          flex: 1;
+          display: flex;
+          align-items: center;
+          padding: 0 4px; /* Space for handle at ends */
       }
-      .slider-bg {
+      .slider-control:active {
+          cursor: grabbing;
+      }
+      .slider-track {
           position: absolute;
           top: 0; left: 0; right: 0; bottom: 0;
-          opacity: 0.1;
+          border-radius: 18px;
+          border: 1px solid rgba(255,255,255,0.1);
       }
       .slider-fill {
           position: absolute;
           top: 0; left: 0; bottom: 0;
-          background: rgba(255,255,255,0.8);
-          transition: width 0.1s linear;
-          box-shadow: 0 0 10px rgba(255,255,255,0.3);
+          background: rgba(255,255,255,0.15); /* Subtle fill */
+          border-radius: 18px 0 0 18px;
+          pointer-events: none;
+      }
+      .slider-handle {
+          position: absolute;
+          top: 4px;
+          bottom: 4px;
+          width: 28px;
+          background: white;
+          border-radius: 14px;
+          box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+          transform: translateX(-50%); /* Center on position */
+          pointer-events: none;
+          z-index: 2;
       }
       .slider-label {
-          position: relative;
-          z-index: 1;
+          position: absolute;
+          left: 0; right: 0;
+          text-align: center;
           font-size: 0.75rem;
           font-weight: 600;
-          color: white;
-          text-align: center;
-          line-height: 24px;
-          text-shadow: 0 1px 2px black;
+          color: rgba(255,255,255,0.8);
           pointer-events: none;
+          z-index: 1;
+          text-shadow: 0 1px 2px black;
       }
 
       .header, .content {
