@@ -417,7 +417,6 @@ export class LightControlCard extends LitElement {
         overflow: hidden;
         transition: background 0.1s linear;
         padding: 16px;
-        touch-action: none;
         user-select: none;
         position: relative;
         cursor: grab;
