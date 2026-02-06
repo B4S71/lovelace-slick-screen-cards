@@ -19,6 +19,7 @@ export declare class LightControlCard extends LitElement {
         };
     };
     _interacting: boolean;
+    _interactionMode: 'light' | 'cover';
     private _pointerStartTime;
     private _pointerStartX;
     private _pointerStartY;
@@ -36,6 +37,7 @@ export declare class LightControlCard extends LitElement {
     private _handlePointerDown;
     private _handlePointerUp;
     private _handlePointerMove;
+    private _applyCoverState;
     private _applyLightState;
     render(): import("lit-html").TemplateResult<1>;
     private _renderCover;

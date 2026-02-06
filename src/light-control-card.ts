@@ -28,6 +28,7 @@ export class LightControlCard extends LitElement {
 
   // Internal state
   _interacting = false;
+  _interactionMode: 'light' | 'cover' = 'light';
   private _pointerStartTime = 0;
   private _pointerStartX = 0;
   private _pointerStartY = 0;
@@ -90,7 +91,6 @@ export class LightControlCard extends LitElement {
     const path = e.composedPath();
     for (const el of path) {
       if ((el as HTMLElement).classList?.contains('control-btn') || 
-          (el as HTMLElement).tagName === 'HA-SWITCH' ||
           (el as HTMLElement).classList?.contains('icon-container')) {
         return;
       }
@@ -101,9 +101,18 @@ export class LightControlCard extends LitElement {
     this._pointerStartX = e.clientX;
     this._pointerStartY = e.clientY;
 
+    // improved mode detection using rect
     const card = this.shadowRoot?.querySelector('ha-card');
     if (card) {
-      card.setPointerCapture(e.pointerId);
+        const rect = card.getBoundingClientRect();
+        const y = (e.clientY - rect.top) / rect.height;
+        // Assume bottom 35% is cover control if covers exist
+        if (this.config.covers && this.config.covers.length > 0 && y > 0.65) {
+            this._interactionMode = 'cover';
+        } else {
+            this._interactionMode = 'light';
+        }
+        card.setPointerCapture(e.pointerId);
     }
   }
 
@@ -122,19 +131,59 @@ export class LightControlCard extends LitElement {
         Math.pow(e.clientY - this._pointerStartY, 2)
       );
 
-      // If short tap and little movement -> Toggle
+      // If short tap and little movement
       if (duration < 250 && dist < 10) {
-        this._toggleLight();
+        if (this._interactionMode === 'light') {
+            this._toggleLight();
+        }
+        // No action for tap on cover currently
       } else {
-        // Else -> Apply brightness/temp
-        this._applyLightState(e, card);
+        // Else -> Apply changes based on mode
+        if (this._interactionMode === 'light') {
+            this._applyLightState(e, card);
+        } else {
+            this._applyCoverState(e, card);
+        }
       }
     }
   }
 
   private _handlePointerMove(_e: PointerEvent) {
-    // Optional: Real-time update of local state if we want to show a "cursor" or "preview"
-    // For now, just the concept of interacting is enough to show the gradient map
+    // Optional: Real-time update of local state
+  }
+
+  private _applyCoverState(e: PointerEvent, card: Element) {
+      const rect = card.getBoundingClientRect();
+      const x = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+      const y = Math.max(0, Math.min(1, (e.clientY - rect.top) / rect.height));
+      
+      const covers = this.config.covers || [];
+      covers.forEach(entityId => {
+          // X Axis: Open (0) -> Close (1)
+          if (x < 0.1) {
+              this.hass.callService('cover', 'open_cover', { entity_id: entityId });
+          } else if (x > 0.9) {
+              this.hass.callService('cover', 'close_cover', { entity_id: entityId });
+          } else {
+              const position = Math.round((1 - x) * 100);
+              this.hass.callService('cover', 'set_cover_position', { 
+                  entity_id: entityId, 
+                  position: position
+              });
+          }
+
+          // Y Axis: Tilt (if supported)
+          // Top (0) -> Open (100?), Bottom (1) -> Closed (0?)
+          // Usually tilt: 0 is closed, 100 is open.
+          // Let's map Y=0 to 100, Y=1 to 0.
+          if (y >= 0 && y <= 1) { // Apply tilt if dragged
+               const tilt = Math.round((1 - y) * 100);
+               this.hass.callService('cover', 'set_cover_tilt_position', {
+                   entity_id: entityId,
+                   tilt_position: tilt
+               });
+          }
+      });
   }
 
   private _applyLightState(e: PointerEvent, card: Element) {
@@ -189,8 +238,13 @@ export class LightControlCard extends LitElement {
     let bgStyle = 'background: linear-gradient(135deg, #2c3e50 0%, #000000 100%);'; // Off state
 
     if (this._interacting) {
-      // 2D Map: X=Temp (Blue->Orange), Y=Bright (White->Black)
-      bgStyle = `background: linear-gradient(to bottom, rgba(0,0,0,0) 0%, rgba(0,0,0,1) 100%), linear-gradient(to right, rgb(166, 209, 255) 0%, rgb(255, 160, 0) 100%);`;
+      if (this._interactionMode === 'cover') {
+           // Cover Gradient: Left (Bright/Open) -> Right (Dark/Close)
+           bgStyle = `background: linear-gradient(to right, #90caf9 0%, #0d47a1 100%);`;
+      } else {
+           // 2D Map: X=Temp (Blue->Orange), Y=Bright (White->Black)
+           bgStyle = `background: linear-gradient(to bottom, rgba(0,0,0,0) 0%, rgba(0,0,0,1) 100%), linear-gradient(to right, rgb(166, 209, 255) 0%, rgb(255, 160, 0) 100%);`;
+      }
     } else if (isOn) {
         // Normalize mireds 0..1
         const ratio = (currentMireds - minMireds) / (maxMireds - minMireds);
@@ -224,11 +278,6 @@ export class LightControlCard extends LitElement {
                     <span class="name">${this.config.name || stateObj.attributes.friendly_name}</span>
                     <span class="state">${isOn ? `${brightness}%` : 'Off'}</span>
                 </div>
-                 <ha-switch
-                    .checked=${isOn}
-                    @click=${(e: Event) => e.stopPropagation()}
-                    @change=${this._toggleLight}
-                ></ha-switch>
             </div>
 
             <!-- COVERS -->
