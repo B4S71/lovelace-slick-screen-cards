@@ -480,7 +480,7 @@ export class LightControlCard extends LitElement {
 
     // Calculate visible covers based on available height
     // Constants from CSS
-    const PADDING_V = 16; // 8 top + 8 bottom (.layout-container)
+    const PADDING_V = 10; // 5 top + 5 bottom (.layout-container)
     const HEADER_H = 40; // .header height (approx, icon is 40px)
     const GAP = 8; // .content gap
     const COVER_SECTION_PAD = 24; // 12 top + 12 bottom (.covers-section internal padding)
@@ -653,7 +653,7 @@ export class LightControlCard extends LitElement {
       }
 
       .layout-container {
-         padding: 8px; /* Tighter padding for 1-row layouts */
+         padding: 5px 10px; /* Tighter padding for 1-row layouts */
          width: 100%;
          height: 100%;
          box-sizing: border-box;
