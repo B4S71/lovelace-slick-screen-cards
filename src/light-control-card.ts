@@ -162,10 +162,21 @@ export class LightControlCard extends LitElement {
 
         if (this._interactionMode === 'light') {
             const brightness = Math.round((1 - y) * 100);
-            this._interactState = `Brightness: ${brightness}%`;
+            this._interactState = `Target Brightness: ${brightness}%`;
         } else {
-            const position = Math.round((1 - x) * 100);
-            this._interactState = `Position: ${position}%`;
+            let positionText = '';
+            // Match deadzones in _applyCoverState (0.1 and 0.9)
+            if (x < 0.1) {
+                positionText = 'Open';
+            } else if (x > 0.9) {
+                positionText = 'Closed';
+            } else {
+                const p = Math.round((1 - x) * 100);
+                positionText = `${p}%`;
+            }
+
+            this._interactState = `Target: ${positionText}`;
+            
             // Optional: Tilt
             const tilt = Math.round((1 - y) * 100);
             this._interactState += ` | Tilt: ${tilt}%`;
@@ -261,13 +272,23 @@ export class LightControlCard extends LitElement {
     if (this._interacting) {
       if (this._interactionMode === 'cover') {
            // Cover Gradient: Left (Bright/Open) -> Right (Dark/Close)
-           // Pattern: Clear at top (transparent), tighter striped at bottom (opaque)
+           // Pattern: Clear at top (transparent), thicker stripes at bottom
            
-           // Layer 1 (Stripe Pattern): Repeating lines
-           // Layer 2 (Vertical Fade - Masking opacity): Transparent top -> Black bottom
-           // Layer 3 (Base Gradient): Sky Blue (Left) -> Dark Gray (Right)
+           // Variable thickness stripes:
+           // 25%: 1px line
+           // 50%: 2px line
+           // 70%: 4px line
+           // 85%: 6px line
+           // 95%: 8px line
+           const stripes = `linear-gradient(to bottom, 
+            transparent 0%, 
+            transparent 25%, rgba(0,0,0,0.15) 25%, rgba(0,0,0,0.15) 26%, transparent 26%,
+            transparent 50%, rgba(0,0,0,0.2) 50%, rgba(0,0,0,0.2) 52%, transparent 52%,
+            transparent 70%, rgba(0,0,0,0.25) 70%, rgba(0,0,0,0.25) 73%, transparent 73%,
+            transparent 85%, rgba(0,0,0,0.3) 85%, rgba(0,0,0,0.3) 89%, transparent 89%,
+            transparent 95%, rgba(0,0,0,0.35) 95%, rgba(0,0,0,0.35) 100%
+           )`;
            
-           const stripes = `repeating-linear-gradient(0deg, transparent, transparent 18px, rgba(0,0,0,0.2) 19px, rgba(0,0,0,0.2) 20px)`;
            const verticalFade = `linear-gradient(to bottom, rgba(255,255,255,0) 0%, rgba(0,0,0,0.4) 100%)`;
            const baseGradient = `linear-gradient(to right, #87CEEB 0%, #333333 100%)`;
 
