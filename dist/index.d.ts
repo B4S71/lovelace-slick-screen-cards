@@ -11,4 +11,5 @@ import './person-card';
 import './vacuum-card';
 import './mower-card';
 import './notification-badge-card';
+import './light-control-card';
 //# sourceMappingURL=index.d.ts.map

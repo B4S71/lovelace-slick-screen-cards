@@ -13,6 +13,7 @@ import './person-card';
 import './vacuum-card';
 import './mower-card';
 import './notification-badge-card';
+import './light-control-card';
 
 console.info(
   '%c Lovelace Slick Screen Cards Loaded (v0.1.1) ',

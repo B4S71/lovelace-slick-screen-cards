@@ -203,6 +203,15 @@ export interface NotificationBadgeCardConfig extends LovelaceCardConfig {
   entities?: EntityBadgeConfig[];
 }
 
+// Light Control Card Types
+export interface LightControlCardConfig extends LovelaceCardConfig {
+  type: 'custom:slick-light-control-card';
+  entity: string;
+  name?: string;
+  covers?: string[];
+}
+
+
 
 
 

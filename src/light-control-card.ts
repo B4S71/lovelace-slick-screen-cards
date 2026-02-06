@@ -150,7 +150,6 @@ export class LightControlCard extends LitElement {
         } else {
              // Fallback for white spectrum lights
              // More mireds = warmer (orange). Less mireds = cooler (blue/white).
-             const w = Math.round(255 * ratio); // Amount of "warmth"
              // Cool: rgb(200, 220, 255)
              // Warm: rgb(255, 200, 150)
              // Interpolation logic roughly:
@@ -220,8 +219,6 @@ export class LightControlCard extends LitElement {
       const stateObj = this.hass.states[entityId];
       if (!stateObj) return html``;
       
-      const isOpen = stateObj.state === 'open';
-
       return html`
         <div class="cover-row">
             <div class="cover-info">

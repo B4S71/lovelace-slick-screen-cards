@@ -174,4 +174,10 @@ export interface NotificationBadgeCardConfig extends LovelaceCardConfig {
     calendars?: CalendarBadgeConfig[];
     entities?: EntityBadgeConfig[];
 }
+export interface LightControlCardConfig extends LovelaceCardConfig {
+    type: 'custom:slick-light-control-card';
+    entity: string;
+    name?: string;
+    covers?: string[];
+}
 //# sourceMappingURL=types.d.ts.map
