@@ -159,8 +159,13 @@ export class LightControlCard extends LitElement {
 
   private _handleSliderMove(e: PointerEvent) {
       if (!this._activeSlider) return;
-      // When captured, e.target is the slider element
-      this._processSliderMove(e, e.target as HTMLElement);
+      
+      const target = e.target as HTMLElement;
+      // Ensure we get the reference slider control even if target is a child
+      const slider = target.closest('.slider-control') as HTMLElement;
+      if (slider) {
+          this._processSliderMove(e, slider);
+      }
   }
 
   private _processSliderMove(e: PointerEvent, target: HTMLElement) {
