@@ -35,9 +35,10 @@ export class LightControlCard extends LitElement {
     startVal: number;
     currentVal: number;
   } | null = null;
-  private _pointerStartTime = 0;
   private _pointerStartX = 0;
   private _pointerStartY = 0;
+  private _longPressTimer: number | null = null;
+  private _pendingPointerId: number | null = null;
 
   static getConfigElement() {
     return document.createElement("slick-light-control-card-editor");
@@ -98,15 +99,31 @@ export class LightControlCard extends LitElement {
       }
     }
     
-    this._interacting = true;
-    this._pointerStartTime = Date.now();
+    // Start long press detection
     this._pointerStartX = e.clientX;
     this._pointerStartY = e.clientY;
+    this._pendingPointerId = e.pointerId;
 
-    const card = this.shadowRoot?.querySelector('ha-card');
-    if (card) {
-        card.setPointerCapture(e.pointerId);
-    }
+    this._longPressTimer = window.setTimeout(() => {
+        this._startInteraction();
+    }, 500);
+  }
+
+  private _startInteraction() {
+     this._longPressTimer = null;
+     this._interacting = true;
+     
+     // Haptic feedback
+     if (navigator.vibrate) navigator.vibrate(50);
+     
+     const card = this.shadowRoot?.querySelector('ha-card');
+     if (card && this._pendingPointerId !== null) {
+         try {
+             card.setPointerCapture(this._pendingPointerId);
+         } catch (e) {
+             // Ignore capture errors
+         }
+     }
   }
 
   private _handlePointerUp(e: PointerEvent) {
@@ -135,25 +152,32 @@ export class LightControlCard extends LitElement {
         return;
     }
 
+    if (this._longPressTimer) {
+        clearTimeout(this._longPressTimer);
+        this._longPressTimer = null;
+        
+        // If it was a clean tap (pointerup, not cancel), toggle
+        if (e.type === 'pointerup') {
+             this._toggleLight();
+        }
+        this._pendingPointerId = null;
+        return;
+    }
+
     if (!this._interacting) return;
     this._interacting = false;
+    this._pendingPointerId = null;
     
     const card = this.shadowRoot?.querySelector('ha-card');
     if (card) {
-      card.releasePointerCapture(e.pointerId);
-
-      // Check for tap vs drag
-      const duration = Date.now() - this._pointerStartTime;
-      const dist = Math.sqrt(
-        Math.pow(e.clientX - this._pointerStartX, 2) + 
-        Math.pow(e.clientY - this._pointerStartY, 2)
-      );
-
-      // If short tap and little movement
-      if (duration < 250 && dist < 10) {
-        this._toggleLight();
-      } else {
-        this._applyLightState(e, card);
+      if (card.releasePointerCapture) {
+          try {
+            card.releasePointerCapture(e.pointerId);
+          } catch (e) { /* ignore */ }
+      }
+      // Only apply if it wasn't a cancel
+      if (e.type === 'pointerup') {
+          this._applyLightState(e, card);
       }
     }
   }
@@ -164,11 +188,23 @@ export class LightControlCard extends LitElement {
         return;
     }
 
+    if (this._longPressTimer) {
+        // Check if moved too far -> Cancel long press
+        const dist = Math.sqrt(
+            Math.pow(e.clientX - this._pointerStartX, 2) + 
+            Math.pow(e.clientY - this._pointerStartY, 2)
+        );
+        if (dist > 10) {
+            clearTimeout(this._longPressTimer);
+            this._longPressTimer = null;
+            this._pendingPointerId = null;
+        }
+        return;
+    }
+
     if (!this._interacting) return;
     
     // Light Control Feedback could be added here if needed
-    // Currently we just wait for UP to apply (optimized for network)
-    // or we could realtime update? The previous code had realtime updates logic but only for numbers.
   }
 
   private _handleSliderDown(e: PointerEvent, entityId: string, type: 'position' | 'tilt', currentVal: number) {
