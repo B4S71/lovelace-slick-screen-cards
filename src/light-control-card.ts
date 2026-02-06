@@ -415,7 +415,7 @@ export class LightControlCard extends LitElement {
         <div class="cursor" 
              style="
                 opacity: ${this._interacting ? '1' : '0'};
-                transform: translate(${this._cursorPos.x - 20}px, ${this._cursorPos.y - 45}px);
+                transform: translate(${this._cursorPos.x - 20}px, ${this._cursorPos.y - 20}px);
              "
         ></div>
       </ha-card>
