@@ -336,7 +336,7 @@ export class EnergyFlowCard extends LitElement {
       }
       
       .content {
-        padding: clamp(8px, 3cqi, 16px);
+        padding: clamp(12px, 4cqi, 20px);
         display: flex;
         flex-direction: column;
         height: 100%;
@@ -365,13 +365,14 @@ export class EnergyFlowCard extends LitElement {
         text-overflow: ellipsis;
       }
       .status-badge {
-        font-size: 0.8rem;
+        font-size: clamp(0.6rem, 2cqi, 0.8rem);
         font-weight: 500;
         text-transform: uppercase;
         padding: 2px 8px;
         background: rgba(255,255,255,0.2);
         border-radius: 12px;
         backdrop-filter: blur(4px);
+        white-space: nowrap;
       }
 
       /* Main Stats Row */
@@ -438,7 +439,7 @@ export class EnergyFlowCard extends LitElement {
       }
       
       .stat-label {
-        font-size: 0.8rem;
+        font-size: clamp(0.6rem, 2cqi, 0.8rem);
         font-weight: 300;
         opacity: 0.8;
         margin-top: 4px;
@@ -468,7 +469,7 @@ export class EnergyFlowCard extends LitElement {
         font-size: 0.85rem;
       }
       .batt-state {
-        font-size: 0.75rem;
+        font-size: clamp(0.6rem, 2cqi, 0.75rem);
         opacity: 0.6;
         text-transform: uppercase;
         font-weight: 500;
@@ -490,7 +491,7 @@ export class EnergyFlowCard extends LitElement {
 
       /* Tiny Mode */
       ha-card.tiny .content {
-        padding: 4px;
+        padding: 8px;
         justify-content: center;
         align-items: center;
         position: relative;

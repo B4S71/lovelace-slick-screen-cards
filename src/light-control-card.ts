@@ -30,8 +30,8 @@ export class LightControlCard extends LitElement {
     COVER_GAP: 8,        // gap between cover rows
     COVER_SECTION_PAD: 24,// covers-section top+bottom padding (12+12)
     CONTENT_GAP: 8,      // .content gap between header and covers
-    PAD_H: 10,           // .layout-container horizontal padding per side
-    PAD_V: 5,            // .layout-container vertical padding per side
+    PAD_H: 12,           // .layout-container horizontal padding per side
+    PAD_V: 12,            // .layout-container vertical padding per side
     SLIDER_MIN_W: 100,   // Minimum useful slider width
   } as const;
 
@@ -735,7 +735,7 @@ export class LightControlCard extends LitElement {
          Two modes: vertical (column) or horizontal (row)
          ═══════════════════════════════════════════ */
       .layout {
-        padding: 5px 10px; /* SIZES.PAD_V / SIZES.PAD_H */
+        padding: 12px; /* SIZES.PAD_V / SIZES.PAD_H */
         width: 100%;
         height: 100%;
         box-sizing: border-box;
@@ -823,14 +823,17 @@ export class LightControlCard extends LitElement {
       }
       .name {
         font-weight: 400;
-        font-size: 1.1rem;
+        font-size: clamp(0.85rem, 3cqi, 1.1rem);
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
       }
       .state {
         opacity: 0.8;
-        font-size: 0.9rem;
+        font-size: clamp(0.7rem, 2.5cqi, 0.9rem);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
       }
 
       /* ═══════════════════════════════════════════
@@ -930,7 +933,7 @@ export class LightControlCard extends LitElement {
         position: absolute;
         left: 0; right: 0;
         text-align: center;
-        font-size: 0.75rem;
+        font-size: clamp(0.6rem, 2cqi, 0.75rem);
         font-weight: 400;
         color: rgba(255, 255, 255, 0.8);
         pointer-events: none;

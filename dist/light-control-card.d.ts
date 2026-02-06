@@ -17,8 +17,8 @@ export declare class LightControlCard extends LitElement {
         readonly COVER_GAP: 8;
         readonly COVER_SECTION_PAD: 24;
         readonly CONTENT_GAP: 8;
-        readonly PAD_H: 10;
-        readonly PAD_V: 5;
+        readonly PAD_H: 12;
+        readonly PAD_V: 12;
         readonly SLIDER_MIN_W: 100;
     };
     static get properties(): {

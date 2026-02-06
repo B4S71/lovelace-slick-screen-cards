@@ -185,9 +185,7 @@ export class NotificationBadgeCard extends LitElement {
         align-items: center;
         align-content: flex-start;
         justify-content: flex-end;
-        margin-left: clamp(6px, 3cqi, 12px);
-        margin-bottom: clamp(6px, 3cqi, 12px);
-        padding-bottom: 4px;
+        padding: clamp(6px, 3cqi, 12px);
         height: 100%;
         box-sizing: border-box;
         overflow: hidden;

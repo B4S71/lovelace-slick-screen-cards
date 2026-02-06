@@ -86,7 +86,7 @@ const A=globalThis,w=t=>t,E=A.trustedTypes,x=E?E.createPolicy("lit-html",{create
       .container {
         position: relative;
         z-index: 1;
-        padding: clamp(8px, 3%, 16px);
+        padding: clamp(12px, 4%, 20px);
         height: 100%;
         box-sizing: border-box;
         display: flex;
@@ -136,6 +136,9 @@ const A=globalThis,w=t=>t,E=A.trustedTypes,x=E?E.createPolicy("lit-html",{create
         font-weight: 300;
         opacity: 0.9;
         text-shadow: 0 1px 2px rgba(0,0,0,0.3);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
       }
 
       .spacer {
@@ -176,12 +179,12 @@ const A=globalThis,w=t=>t,E=A.trustedTypes,x=E?E.createPolicy("lit-html",{create
         align-items: flex-end;
       }
       .target-label {
-        font-size: 0.65rem;
+        font-size: clamp(0.5rem, 2cqi, 0.65rem);
         text-transform: uppercase;
         opacity: 0.7;
       }
       .target-val {
-        font-size: 1.1rem;
+        font-size: clamp(0.85rem, 3cqi, 1.1rem);
         font-weight: 400;
       }
       .divider {
@@ -192,7 +195,7 @@ const A=globalThis,w=t=>t,E=A.trustedTypes,x=E?E.createPolicy("lit-html",{create
       }
       .target-chip {
         font-weight: 400;
-        font-size: 0.9rem;
+        font-size: clamp(0.7rem, 2.5cqi, 0.9rem);
       }
     `}}customElements.get("slick-simple-climate-card")||customElements.define("slick-simple-climate-card",ht);class lt extends ot{static get properties(){return{hass:{},_config:{}}}setConfig(t){this._config=t}_valueChanged(t){const e={...this._config,...t.detail.value},i=new CustomEvent("config-changed",{detail:{config:e},bubbles:!0,composed:!0});this.dispatchEvent(i)}render(){if(!this.hass||!this._config)return q``;return q`
         <ha-form

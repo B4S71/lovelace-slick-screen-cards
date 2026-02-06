@@ -165,7 +165,7 @@ export class WindCompassCard extends HTMLElement {
         }
 
         .container {
-          padding: clamp(8px, 3%, 20px);
+          padding: clamp(12px, 4%, 24px);
           display: flex;
           flex-direction: column;
           gap: clamp(8px, 3%, 20px);
@@ -242,7 +242,7 @@ export class WindCompassCard extends HTMLElement {
           transform: translateX(-50%);
           color: var(--primary-text-color);
           font-weight: 200;
-          font-size: 20px;
+          font-size: clamp(14px, 4cqmax, 20px);
           letter-spacing: 0.5px;
           z-index: 3;
           line-height: 1;
@@ -364,14 +364,14 @@ export class WindCompassCard extends HTMLElement {
         }
 
         .speed-text .unit {
-          font-size: 1.25rem;
+          font-size: clamp(0.85rem, 3cqmax, 1.25rem);
           color: var(--secondary-text-color);
           font-weight: 200;
         }
 
         .speed-text .gust-info {
           margin-left: 8px;
-          font-size: 13px;
+          font-size: clamp(10px, 3cqmax, 14px);
           color: var(--secondary-text-color);
           opacity: 0.8;
         }
@@ -384,6 +384,7 @@ export class WindCompassCard extends HTMLElement {
 
         :host(.simple-mode) .container {
            padding: 0;
+           padding-top: 12px;
            height: 100%;
            position: relative;
         }
@@ -402,7 +403,7 @@ export class WindCompassCard extends HTMLElement {
         
         :host(.simple-mode) .compass-label {
            top: 20px; /* Pushed down to clear marker */
-           font-size: 16px;
+           font-size: clamp(12px, 3cqmax, 16px);
         }
 
         :host(.simple-mode) .compass-marker {
@@ -438,7 +439,7 @@ export class WindCompassCard extends HTMLElement {
         
         :host(.simple-mode) .speed-text .gust-info {
            margin-left: 6px;
-           font-size: 14px;
+           font-size: clamp(10px, 3cqmax, 14px);
            opacity: 0.9;
         }
 

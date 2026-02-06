@@ -673,15 +673,15 @@ export class VacuumCard extends LitElement {
       box-shadow: var(--ha-card-box-shadow, 0px 2px 1px -1px rgba(0,0,0,0.2), 0px 1px 1px 0px rgba(0,0,0,0.14), 0px 1px 3px 0px rgba(0,0,0,0.12));
       border-radius: var(--ha-card-border-radius, 12px);
       color: var(--primary-text-color);
-      padding: 16px;
+      padding: clamp(12px, 3%, 20px);
       display: flex;
       flex-direction: column;
-      gap: 8px; /* Reduced from 16px */
+      gap: 8px;
       height: 100%;
       box-sizing: border-box;
       cursor: pointer;
       justify-content: space-between;
-      overflow: hidden; /* Ensure content doesn't bleed */
+      overflow: hidden;
     }
 
     .vacuum-card-container.short {
@@ -697,7 +697,7 @@ export class VacuumCard extends LitElement {
     .vacuum-card-container.tiny {
         flex-direction: row;
         align-items: center;
-        padding: 0 12px;
+        padding: 8px 12px;
         gap: 12px;
     }
 
@@ -724,12 +724,12 @@ export class VacuumCard extends LitElement {
     }
 
     .vacuum-card-container.tiny .status {
-        font-size: 0.9rem;
+        font-size: clamp(0.75rem, 2.5cqi, 0.9rem);
         line-height: 1.1;
     }
     
     .vacuum-card-container.tiny .room {
-        font-size: 0.75rem;
+        font-size: clamp(0.6rem, 2cqi, 0.75rem);
         line-height: 1.1;
         opacity: 0.8;
     }
@@ -745,7 +745,7 @@ export class VacuumCard extends LitElement {
 
     .vacuum-card-container.tiny .swipe-slider {
         height: 36px;
-        font-size: 0.9rem;
+        font-size: clamp(0.7rem, 2cqi, 0.9rem);
     }
 
     .vacuum-card-container.tiny .action-btn {
@@ -768,7 +768,7 @@ export class VacuumCard extends LitElement {
     }
     
     .vacuum-card-container.short .status {
-        font-size: 1rem;
+        font-size: clamp(0.8rem, 2.5cqi, 1rem);
     }
     
     .actions {
@@ -816,7 +816,7 @@ export class VacuumCard extends LitElement {
     }
 
     .status {
-      font-size: 1.3rem;
+      font-size: clamp(0.9rem, 3cqi, 1.3rem);
       font-weight: 300;
       line-height: 1.4;
       white-space: nowrap; 
@@ -825,7 +825,7 @@ export class VacuumCard extends LitElement {
     }
 
     .room {
-      font-size: 1rem;
+      font-size: clamp(0.75rem, 2.5cqi, 1rem);
       font-weight: 300;
       opacity: 0.9;
       line-height: 1.2;
@@ -835,7 +835,7 @@ export class VacuumCard extends LitElement {
     }
 
     .battery {
-      font-size: 0.9rem;
+      font-size: clamp(0.7rem, 2cqi, 0.9rem);
       opacity: 0.7;
       display: flex;
       align-items: center;
@@ -843,7 +843,7 @@ export class VacuumCard extends LitElement {
     }
 
     .stats {
-      font-size: 0.9rem;
+      font-size: clamp(0.7rem, 2cqi, 0.9rem);
       opacity: 0.7;
       margin-top: 4px;
     }
@@ -936,7 +936,7 @@ export class VacuumCard extends LitElement {
         width: 100%;
         text-align: center;
         color: var(--secondary-text-color);
-        font-size: 0.9rem;
+        font-size: clamp(0.7rem, 2cqi, 0.9rem);
         font-weight: 300;
         letter-spacing: 0.5px;
         pointer-events: none;
@@ -1032,7 +1032,7 @@ export class VacuumCard extends LitElement {
     }
 
     .time-label {
-        font-size: 0.6rem;
+        font-size: clamp(0.45rem, 1.5cqi, 0.6rem);
         text-transform: uppercase;
         opacity: 0.8;
         margin-bottom: 2px;
@@ -1049,7 +1049,7 @@ export class VacuumCard extends LitElement {
     .time-inputs {
         display: flex;
         align-items: center;
-        font-size: 1.1rem;
+        font-size: clamp(0.85rem, 2.5cqi, 1.1rem);
         font-weight: 400;
         line-height: 1;
     }

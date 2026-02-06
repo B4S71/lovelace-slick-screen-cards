@@ -123,7 +123,7 @@ const A=globalThis,x=t=>t,E=A.trustedTypes,S=E?E.createPolicy("lit-html",{create
          Two modes: vertical (column) or horizontal (row)
          ═══════════════════════════════════════════ */
       .layout {
-        padding: 5px 10px; /* SIZES.PAD_V / SIZES.PAD_H */
+        padding: 12px; /* SIZES.PAD_V / SIZES.PAD_H */
         width: 100%;
         height: 100%;
         box-sizing: border-box;
@@ -211,14 +211,17 @@ const A=globalThis,x=t=>t,E=A.trustedTypes,S=E?E.createPolicy("lit-html",{create
       }
       .name {
         font-weight: 400;
-        font-size: 1.1rem;
+        font-size: clamp(0.85rem, 3cqi, 1.1rem);
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
       }
       .state {
         opacity: 0.8;
-        font-size: 0.9rem;
+        font-size: clamp(0.7rem, 2.5cqi, 0.9rem);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
       }
 
       /* ═══════════════════════════════════════════
@@ -318,7 +321,7 @@ const A=globalThis,x=t=>t,E=A.trustedTypes,S=E?E.createPolicy("lit-html",{create
         position: absolute;
         left: 0; right: 0;
         text-align: center;
-        font-size: 0.75rem;
+        font-size: clamp(0.6rem, 2cqi, 0.75rem);
         font-weight: 400;
         color: rgba(255, 255, 255, 0.8);
         pointer-events: none;
@@ -346,5 +349,5 @@ const A=globalThis,x=t=>t,E=A.trustedTypes,S=E?E.createPolicy("lit-html",{create
         will-change: transform;
         z-index: 10;
       }
-    `}}ct.SIZES={ICON:40,HEADER_GAP:12,HEADER_MIN_W:120,COVER_ROW_H:42,COVER_ICON_W:40,COVER_GAP:8,COVER_SECTION_PAD:24,CONTENT_GAP:8,PAD_H:10,PAD_V:5,SLIDER_MIN_W:100},customElements.get("slick-light-control-card")||customElements.define("slick-light-control-card",ct),window.customCards=window.customCards||[],window.customCards.push({type:"slick-light-control-card",name:"Slick Light Control",description:"A card to control lights (brightness, color temp) and associated covers.",preview:!0});export{ct as LightControlCard};
+    `}}ct.SIZES={ICON:40,HEADER_GAP:12,HEADER_MIN_W:120,COVER_ROW_H:42,COVER_ICON_W:40,COVER_GAP:8,COVER_SECTION_PAD:24,CONTENT_GAP:8,PAD_H:12,PAD_V:12,SLIDER_MIN_W:100},customElements.get("slick-light-control-card")||customElements.define("slick-light-control-card",ct),window.customCards=window.customCards||[],window.customCards.push({type:"slick-light-control-card",name:"Slick Light Control",description:"A card to control lights (brightness, color temp) and associated covers.",preview:!0});export{ct as LightControlCard};
 //# sourceMappingURL=light-control-card.js.map

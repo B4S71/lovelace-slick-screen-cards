@@ -128,8 +128,7 @@ export class PersonCard extends LitElement {
       height: 100%;
       box-sizing: border-box;
       align-content: flex-start;
-      margin-right: clamp(6px, 3cqi, 12px);
-      margin-bottom: clamp(6px, 3cqi, 12px);
+      padding: clamp(6px, 3cqi, 12px);
       overflow: hidden;
     }
     .person-container.horizontal {
