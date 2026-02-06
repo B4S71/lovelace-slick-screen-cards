@@ -480,9 +480,9 @@ export class LightControlCard extends LitElement {
 
     // Calculate visible covers based on available height
     // Constants from CSS
-    const PADDING_V = 24; // 12 top + 12 bottom (.layout-container)
-    const HEADER_H = 48; // .header height (approx)
-    const GAP = 12; // .content gap
+    const PADDING_V = 16; // 8 top + 8 bottom (.layout-container)
+    const HEADER_H = 40; // .header height (approx, icon is 40px)
+    const GAP = 8; // .content gap
     const COVER_SECTION_PAD = 24; // 12 top + 12 bottom (.covers-section internal padding)
     const COVER_ROW_H = 42; // .slider-control height
     const COVER_GAP = 8; // .covers-section gap
@@ -653,7 +653,7 @@ export class LightControlCard extends LitElement {
       }
 
       .layout-container {
-         padding: 12px;
+         padding: 8px; /* Tighter padding for 1-row layouts */
          width: 100%;
          height: 100%;
          box-sizing: border-box;
@@ -664,7 +664,7 @@ export class LightControlCard extends LitElement {
       .layout-container.medium {
           flex-direction: row;
           align-items: center;
-          gap: 16px;
+          gap: 12px;
       }
 
       ha-card:active {
@@ -675,14 +675,14 @@ export class LightControlCard extends LitElement {
         flex-direction: column;
         height: 100%;
         justify-content: space-between;
-        gap: 12px;
+        gap: 8px;
         pointer-events: none; /* Allow events to pass through wrapper, but children re-enable if needed */
         flex: 1;
         min-height: 0; /* Allow shrinking */
       }
       .layout-container.medium .content {
           flex-direction: row;
-          gap: 16px;
+          gap: 12px;
           justify-content: flex-start;
           align-items: center;
       }
@@ -710,8 +710,8 @@ export class LightControlCard extends LitElement {
         flex: 0 0 auto; /* Never shrink */
         background: rgba(255, 255, 255, 0.2);
         border-radius: 50%;
-        width: 48px;
-        height: 48px;
+        width: 40px; /* Reduced from 48px */
+        height: 40px;
         display: flex;
         align-items: center;
         justify-content: center;
