@@ -199,15 +199,24 @@ export class LightControlCard extends LitElement {
       const rect = slider.getBoundingClientRect();
       const { startX, startVal } = this._activeSlider!;
       
-      // Calculate delta in %
       const deltaPixels = e.clientX - startX;
       
-      // Calculate active width (total width - handle width essentially)
-      // but for simplicity let's use full width mapping 
+      // Map pixels to % 
+      // Available track width is rect.width
+      // But visual constraints: 
+      // 0% -> handle at left: 4px
+      // 100% -> handle at right: rect.width - handleWidth - 4px
+      
+      // Let's stick to simple % logic but constrain visual. 
+      // 1% of value = 1% of width?
       const deltaPercent = (deltaPixels / rect.width) * 100;
       
       let newVal = Math.max(0, Math.min(100, Math.round(startVal + deltaPercent)));
       
+      // Apply deadzone for 0/100
+      if (newVal < 5) newVal = 0;
+      if (newVal > 95) newVal = 100;
+
       // Update local state for rendering
       this._activeSlider!.currentVal = newVal;
       this.requestUpdate();
@@ -342,9 +351,8 @@ export class LightControlCard extends LitElement {
                 <div class="slider-control" 
                      @pointerdown=${(e: PointerEvent) => this._handleSliderDown(e, entityId, 'position', position)}
                 >
-                     <div class="slider-track"></div>
                      <div class="slider-fill" style="width: ${position}%"></div>
-                     <div class="slider-handle" style="left: ${position}%"></div>
+                     <div class="slider-handle" style="left: calc((100% - 42px - 8px) * ${position / 100} + 4px)"></div>
                      <div class="slider-label">Pos: ${position}%</div>
                 </div>
 
@@ -353,9 +361,8 @@ export class LightControlCard extends LitElement {
                 <div class="slider-control" 
                      @pointerdown=${(e: PointerEvent) => this._handleSliderDown(e, entityId, 'tilt', tilt)}
                 >
-                     <div class="slider-track"></div>
                      <div class="slider-fill" style="width: ${tilt}%"></div>
-                     <div class="slider-handle" style="left: ${tilt}%"></div>
+                     <div class="slider-handle" style="left: calc((100% - 42px - 8px) * ${tilt / 100} + 4px)"></div>
                      <div class="slider-label">Tilt: ${tilt}%</div>
                 </div>
                 ` : ''}
@@ -470,53 +477,62 @@ export class LightControlCard extends LitElement {
       
       .slider-control {
           position: relative;
-          height: 36px;
-          border-radius: 18px;
-          background: rgba(0,0,0,0.3);
-          cursor: grab;
+          height: 50px; /* Match vacuum card (42px handle + 4px top/bottom) */
+          border-radius: 12px;
+          background: rgba(0,0,0,0.3); /* Dark track */
+          box-shadow: inset 0 1px 3px rgba(0,0,0,0.15); /* Pressed in */
+          cursor: pointer; /* Click allowed, implemented relative drag */
           touch-action: none;
           flex: 1;
           display: flex;
           align-items: center;
-          padding: 0 4px; /* Space for handle at ends */
+          /* No padding, we absolute position handle */
+          overflow: hidden; /* Contain fill */
       }
       .slider-control:active {
           cursor: grabbing;
       }
+      /* Remove slider-track border since we use background */
       .slider-track {
-          position: absolute;
-          top: 0; left: 0; right: 0; bottom: 0;
-          border-radius: 18px;
-          border: 1px solid rgba(255,255,255,0.1);
+          display: none; 
       }
       .slider-fill {
           position: absolute;
           top: 0; left: 0; bottom: 0;
           background: rgba(255,255,255,0.15); /* Subtle fill */
-          border-radius: 18px 0 0 18px;
+          border-radius: 12px 0 0 12px;
           pointer-events: none;
       }
       .slider-handle {
           position: absolute;
           top: 4px;
           bottom: 4px;
-          width: 28px;
-          background: white;
-          border-radius: 14px;
-          box-shadow: 0 2px 4px rgba(0,0,0,0.3);
-          transform: translateX(-50%); /* Center on position */
+          width: 42px; /* Fixed width */
+          
+          /* Glass Style */
+          background: rgba(255, 255, 255, 0.15);
+          backdrop-filter: blur(4px);
+          border: 1px solid rgba(255, 255, 255, 0.2);
+          
+          border-radius: 8px;
+          box-shadow: 0 2px 4px rgba(0,0,0,0.1);
           pointer-events: none;
           z-index: 2;
+          
+          /* Centering Icon if we added one later */
+          display: flex;
+          align-items: center;
+          justify-content: center;
       }
       .slider-label {
           position: absolute;
           left: 0; right: 0;
           text-align: center;
-          font-size: 0.75rem;
+          font-size: 0.8rem;
           font-weight: 600;
           color: rgba(255,255,255,0.8);
           pointer-events: none;
-          z-index: 1;
+          z-index: 3; /* Above handle */
           text-shadow: 0 1px 2px black;
       }
 
