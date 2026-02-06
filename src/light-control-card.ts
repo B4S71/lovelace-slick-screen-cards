@@ -25,13 +25,15 @@ export class LightControlCard extends LitElement {
       config: { state: true },
       _interacting: { state: true },
       _cursorPos: { state: true },
-      _layout: { state: true }
+      _layout: { state: true },
+      _height: { state: true }
     };
   }
 
   // Internal state
   _interacting = false;
   _layout: 'compact' | 'small' | 'medium' | 'large' = 'large';
+  _height = 0;
   _resizeObserver: ResizeObserver | null = null;
   _cursorPos = { x: 0, y: 0 };
   _activeSlider: { 
@@ -86,6 +88,8 @@ export class LightControlCard extends LitElement {
   }
 
   private _updateLayout(width: number, height: number) {
+      this._height = height;
+
       // Respect manual overwrite
       if (this.config.layout && this.config.layout !== 'auto') {
           this._layout = this.config.layout;
@@ -474,6 +478,44 @@ export class LightControlCard extends LitElement {
 
     const layoutClass = this._layout || 'large';
 
+    // Calculate visible covers based on available height
+    // Constants from CSS
+    const PADDING_V = 32; // 16 top + 16 bottom (.layout-container)
+    const HEADER_H = 48; // .header height (approx)
+    const GAP = 20; // .content gap
+    const COVER_SECTION_PAD = 28; // 12 top + 16 bottom (.covers-section internal padding)
+    const COVER_ROW_H = 50; // .slider-control height
+    const COVER_GAP = 8; // .covers-section gap
+
+    let visibleCoversCount = covers.length;
+
+    if (this._height > 0) {
+        let availableForCovers = 0;
+        
+        if (layoutClass === 'medium') {
+            // Medium: Side-by-Side. Covers take full height minus container padding
+            // Covers section padding is 0 in medium
+            availableForCovers = this._height - PADDING_V;
+            // Calculation: (Rows * 50) + ((Rows-1) * 8) <= available
+            // 58*R - 8 <= avail -> 58*R <= avail + 8 -> R <= (avail + 8)/58
+            visibleCoversCount = Math.floor((availableForCovers + COVER_GAP) / (COVER_ROW_H + COVER_GAP));
+        } else {
+            // Vertical Stack
+            // Total = PADDING_V + HEADER_H + GAP + COVER_SECTION_PAD + (Rows...);
+            const usedByHeader = PADDING_V + HEADER_H + GAP + COVER_SECTION_PAD;
+            availableForCovers = this._height - usedByHeader;
+            
+            if (availableForCovers < COVER_ROW_H) {
+                visibleCoversCount = 0;
+            } else {
+                visibleCoversCount = Math.floor((availableForCovers + COVER_GAP) / (COVER_ROW_H + COVER_GAP));
+            }
+        }
+    }
+    
+    // Ensure we don't show more than configured
+    visibleCoversCount = Math.max(0, Math.min(covers.length, visibleCoversCount));
+
     return html`
       <ha-card 
         class="${layoutClass}"
@@ -498,10 +540,10 @@ export class LightControlCard extends LitElement {
                     </div>
                 </div>
 
-                <!-- COVERS (Hidden in compact) -->
-                ${covers.length > 0 && layoutClass !== 'compact' ? html`
+                <!-- COVERS (Hidden in compact or if no space) -->
+                ${covers.length > 0 && layoutClass !== 'compact' && visibleCoversCount > 0 ? html`
                     <div class="covers-section" @pointerdown=${(e: Event) => e.stopPropagation()}>
-                        ${covers.map((cover: string) => this._renderCover(cover))}
+                        ${covers.slice(0, visibleCoversCount).map((cover: string) => this._renderCover(cover))}
                     </div>
                 ` : ''}
             </div>
