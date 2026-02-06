@@ -312,16 +312,27 @@ export class LightControlCard extends LitElement {
     if (!stateObj) return;
 
     // Y -> Brightness (Up=100%, Down=0%)
-    const brightnessPct = Math.round((1 - y) * 100);
+    let brightnessPct = Math.round((1 - y) * 100);
+
+    // Snap to edges (10% threshold)
+    if (brightnessPct > 90) brightnessPct = 100;
+    if (brightnessPct < 15) brightnessPct = 0; // Slightly larger zone for OFF
 
     // X -> Color Temp (Left=Cold/MinMireds, Right=Warm/MaxMireds)
     const minMireds = stateObj.attributes.min_mireds || 153;
     const maxMireds = stateObj.attributes.max_mireds || 500;
     const colorTemp = Math.round(minMireds + (x * (maxMireds - minMireds)));
 
+    if (brightnessPct === 0) {
+        this.hass.callService('light', 'turn_off', {
+            entity_id: this.config.entity
+        });
+        return;
+    }
+
     const serviceData: any = {
       entity_id: this.config.entity,
-      brightness_pct: Math.max(1, brightnessPct) // Don't turn off, just dim
+      brightness_pct: brightnessPct
     };
 
     // Only apply color temp if supported
