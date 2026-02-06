@@ -103,20 +103,27 @@ export class LightControlCard extends LitElement {
           return;
       }
 
-      // 2. Determine Aspect Ratio (Grid-aware)
-      // "Wide" means spanning more columns than rows
-      const aspectRatio = width / height;
-      const isWide = aspectRatio > 1.1; // Slightly rectangular or wider
-
-      if (isWide && height < 350) {
-          // 2-5 Rows High, but Wide -> Landscape (Medium)
-          // This ensures "3 rows high" uses landscape if width allows
+      // 2. Calculate available space for covers in each layout mode
+      const HEADER_WIDTH_IN_LANDSCAPE = 180; // Approx width of header in side-by-side
+      const MIN_HEIGHT_FOR_VERTICAL = 200;   // Min height to allow vertical layout
+      
+      // Space available for cover sliders:
+      const landscapeSliderWidth = width - HEADER_WIDTH_IN_LANDSCAPE - 40; // subtract header + gaps
+      const verticalSliderWidth = width - 20; // Full width minus padding
+      
+      // 3. Prefer vertical (large) if:
+      //    - Card is tall enough (3+ rows), AND
+      //    - Vertical layout gives more horizontal space for sliders
+      if (height >= MIN_HEIGHT_FOR_VERTICAL && verticalSliderWidth > landscapeSliderWidth) {
+          this._layout = 'large';
+      } else if (width >= 400 && height < 350) {
+          // Wide but not tall enough for vertical -> Landscape (Medium)
           this._layout = 'medium';
       } else if (height < 220) {
-          // 2-3 Rows High, Narrow/Square -> Vertical Stack (Small)
+          // 2-3 Rows High, Narrow -> Vertical Stack (Small)
           this._layout = 'small';
       } else {
-          // 4+ Rows High, Narrow/Square -> Spaced Vertical (Large)
+          // Fallback to Large for other tall cases
           this._layout = 'large';
       }
   }
