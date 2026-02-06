@@ -579,39 +579,35 @@ export class LightControlCard extends LitElement {
     return css`
       :host {
         display: block;
+        height: 100%;
       }
       ha-card {
         color: white;
         overflow: hidden;
         transition: background 0.1s linear;
-        /* padding: 16px; handled by layout container now */
+        border: none;
         user-select: none;
         position: relative;
         cursor: grab;
         display: flex;
         flex-direction: column;
         box-sizing: border-box;
+        height: 100%; /* Always fill the host container */
+        justify-content: center; /* Center content vertically */
       }
       
-      /* Layout sizing */
+      /* Layout sizing - Remove fixed heights/auto that prevent filling */
       ha-card.compact {
-          min-height: unset;
-          height: auto; 
+          /* Compact content is small, but if container is big, we fill it */
           cursor: pointer;
       }
       ha-card.medium {
-          min-height: unset;
-          height: auto;
       }
       
       ha-card.small {
-          min-height: 150px;
-          height: auto;
       }
       
       ha-card.large {
-          min-height: 200px;
-          height: auto;
       }
 
       .layout-container {
