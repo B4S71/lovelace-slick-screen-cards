@@ -599,7 +599,7 @@ export class LightControlCard extends LitElement {
                 >
                      <div class="slider-fill" style="width: calc((100% - 50px) * ${position / 100} + 46px)"></div>
                      <div class="slider-handle" style="left: calc((100% - 42px - 8px) * ${position / 100} + 4px)"></div>
-                     <div class="slider-label">Pos: ${position}%</div>
+                     <div class="slider-label">${position}%</div>
                 </div>
 
                 <!-- Tilt Slider -->
@@ -701,8 +701,8 @@ export class LightControlCard extends LitElement {
       }
       /* In medium layout, header doesn't need to flex-grow heavily if side-by-side */
       .layout-container.medium .header {
-          flex: 0 0 auto;
-          min-width: 180px;
+          flex: 0 1 auto; /* Allow shrinking */
+          min-width: 120px; /* Reduced from 180px */
           width: auto;
       }
 
@@ -855,12 +855,14 @@ export class LightControlCard extends LitElement {
           position: absolute;
           left: 0; right: 0;
           text-align: center;
-          font-size: 0.8rem;
+          font-size: 0.75rem; /* Slightly smaller */
           font-weight: 600;
           color: rgba(255,255,255,0.8);
           pointer-events: none;
           z-index: 3; /* Above handle */
           text-shadow: 0 1px 2px black;
+          white-space: nowrap; /* Prevent wrap */
+          overflow: hidden;
       }
 
       .header, .content {
