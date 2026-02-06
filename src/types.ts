@@ -209,6 +209,7 @@ export interface LightControlCardConfig extends LovelaceCardConfig {
   entity: string;
   name?: string;
   covers?: string[];
+  layout?: 'auto' | 'compact' | 'small' | 'medium' | 'large';
 }
 
 

@@ -86,6 +86,12 @@ export class LightControlCard extends LitElement {
   }
 
   private _updateLayout(width: number, height: number) {
+      // Respect manual overwrite
+      if (this.config.layout && this.config.layout !== 'auto') {
+          this._layout = this.config.layout;
+          return;
+      }
+
       if (height < 100) {
           this._layout = 'compact';
       } else if (height < 200 && width >= 400) {
@@ -118,7 +124,13 @@ export class LightControlCard extends LitElement {
   }
 
   shouldUpdate(changedProps: PropertyValues) {
-    if (changedProps.has('config')) return true;
+    if (changedProps.has('config')) {
+        // Force layout update if config layout changes
+        if (this.config.layout && this.config.layout !== 'auto') {
+            this._layout = this.config.layout;
+        }
+        return true;
+    }
     
     // Check if relevant entities changed
     const oldHass = changedProps.get('hass') as HomeAssistant | undefined;
