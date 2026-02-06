@@ -698,8 +698,17 @@ export class LightControlCard extends LitElement {
       .layout-container.medium .content {
           flex-direction: row;
           gap: 12px;
-          justify-content: flex-start;
-          align-items: center;
+          justify-content: flex-start; 
+          align-items: stretch; /* Allow children to decide vertical pos */
+      }
+      
+      .layout-container.medium .header {
+          align-self: flex-start; /* Stay Top */
+      }
+      
+      .layout-container.medium .covers-section {
+          align-self: flex-end; /* Push to Bottom */
+          padding-bottom: 4px; /* Ensure not flush with very edge if padding is tight */
       }
 
       .content > * {
