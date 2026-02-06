@@ -116,12 +116,17 @@ export class LightControlCard extends LitElement {
      // Haptic feedback
      if (navigator.vibrate) navigator.vibrate(50);
      
-     const card = this.shadowRoot?.querySelector('ha-card');
-     if (card && this._pendingPointerId !== null) {
-         try {
-             card.setPointerCapture(this._pendingPointerId);
-         } catch (e) {
-             // Ignore capture errors
+     const card = this.shadowRoot?.querySelector('ha-card') as HTMLElement;
+     if (card) {
+         // Lock interaction immediately to prevent scrolling
+         card.style.touchAction = 'none';
+         
+         if (this._pendingPointerId !== null) {
+             try {
+                 card.setPointerCapture(this._pendingPointerId);
+             } catch (e) {
+                 // Ignore capture errors
+             }
          }
      }
   }
@@ -132,7 +137,9 @@ export class LightControlCard extends LitElement {
         this._activeSlider = null;
         const target = e.target as HTMLElement;
         if (target && target.releasePointerCapture) {
-             target.releasePointerCapture(e.pointerId);
+             try {
+                target.releasePointerCapture(e.pointerId);
+             } catch (e) { /* ignore */ }
         }
         
         // Execute service call on release
@@ -164,11 +171,16 @@ export class LightControlCard extends LitElement {
         return;
     }
 
+    // Reset touch action
+    const card = this.shadowRoot?.querySelector('ha-card') as HTMLElement;
+    if (card) {
+        card.style.touchAction = '';
+    }
+
     if (!this._interacting) return;
     this._interacting = false;
     this._pendingPointerId = null;
     
-    const card = this.shadowRoot?.querySelector('ha-card');
     if (card) {
       if (card.releasePointerCapture) {
           try {
@@ -425,8 +437,6 @@ export class LightControlCard extends LitElement {
         user-select: none;
         position: relative;
         cursor: grab;
-        /* Enable vertical pan by default, but we will preventDefault when captured */
-        touch-action: pan-y;
         /* Ensure minimum height for controls */
         min-height: 150px;
         display: flex;
