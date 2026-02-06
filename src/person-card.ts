@@ -122,12 +122,12 @@ export class PersonCard extends LitElement {
     }
     .person-container {
       display: flex;
-      flex-wrap: wrap;
+      flex-wrap: nowrap;
       gap: clamp(6px, 3cqi, 12px);
-      justify-content: flex-start;
+      justify-content: flex-end;
+      align-items: center;
       height: 100%;
       box-sizing: border-box;
-      align-content: flex-start;
       padding: clamp(6px, 3cqi, 12px);
       overflow: hidden;
     }

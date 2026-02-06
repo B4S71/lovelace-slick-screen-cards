@@ -656,12 +656,12 @@ const w=globalThis,$=t=>t,k=w.trustedTypes,S=k?k.createPolicy("lit-html",{create
     }
     .person-container {
       display: flex;
-      flex-wrap: wrap;
+      flex-wrap: nowrap;
       gap: clamp(6px, 3cqi, 12px);
-      justify-content: flex-start;
+      justify-content: flex-end;
+      align-items: center;
       height: 100%;
       box-sizing: border-box;
-      align-content: flex-start;
       padding: clamp(6px, 3cqi, 12px);
       overflow: hidden;
     }
@@ -1802,10 +1802,9 @@ const w=globalThis,$=t=>t,k=w.trustedTypes,S=k?k.createPolicy("lit-html",{create
     
     .badge-container {
         display: flex;
-        flex-wrap: wrap;
+        flex-wrap: nowrap;
         gap: clamp(6px, 3cqi, 12px);
         align-items: center;
-        align-content: flex-start;
         justify-content: flex-end;
         padding: clamp(6px, 3cqi, 12px);
         height: 100%;

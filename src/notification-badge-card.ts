@@ -180,10 +180,9 @@ export class NotificationBadgeCard extends LitElement {
     
     .badge-container {
         display: flex;
-        flex-wrap: wrap;
+        flex-wrap: nowrap;
         gap: clamp(6px, 3cqi, 12px);
         align-items: center;
-        align-content: flex-start;
         justify-content: flex-end;
         padding: clamp(6px, 3cqi, 12px);
         height: 100%;
