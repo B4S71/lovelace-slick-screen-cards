@@ -194,7 +194,7 @@ export class LightControlCard extends LitElement {
             Math.pow(e.clientX - this._pointerStartX, 2) + 
             Math.pow(e.clientY - this._pointerStartY, 2)
         );
-        if (dist > 10) {
+        if (dist > 5) { // Strict checking
             clearTimeout(this._longPressTimer);
             this._longPressTimer = null;
             this._pendingPointerId = null;
@@ -204,7 +204,12 @@ export class LightControlCard extends LitElement {
 
     if (!this._interacting) return;
     
-    // Light Control Feedback could be added here if needed
+    // Crucial: Prevent scrolling while interacting
+    e.preventDefault();
+    e.stopPropagation();
+
+    // Visual feedback logic (optional: can be used to show reticle or update internal state)
+    // We could requestUpdate here if we wanted to show a cursor
   }
 
   private _handleSliderDown(e: PointerEvent, entityId: string, type: 'position' | 'tilt', currentVal: number) {
@@ -420,6 +425,8 @@ export class LightControlCard extends LitElement {
         user-select: none;
         position: relative;
         cursor: grab;
+        /* Enable vertical pan by default, but we will preventDefault when captured */
+        touch-action: pan-y;
         /* Ensure minimum height for controls */
         min-height: 150px;
         display: flex;
