@@ -525,6 +525,7 @@ export class MiniWeatherCard extends LitElement {
         border-radius: var(--ha-card-border-radius, 12px);
         height: 100%; box-sizing: border-box; overflow: hidden; display: flex; flex-direction: column;
         box-shadow: var(--ha-card-box-shadow, none); position: relative;
+        container-type: size;
       }
       .bg-container { position: absolute; top: 0; left: 0; right: 0; bottom: 0; z-index: 0; overflow: hidden; border-radius: var(--ha-card-border-radius, 12px); }
       .bg-layer { position: absolute; top: 0; left: 0; right: 0; bottom: 0; transition: background 1s ease; }
@@ -532,12 +533,12 @@ export class MiniWeatherCard extends LitElement {
       .bg-layer.dark { z-index: 2; }
       .history-svg { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 3; pointer-events: none; }
       .content-layer { position: relative; z-index: 4; }
-      .container { padding: 16px; height: 100%; display: flex; flex-direction: column; box-sizing: border-box; }
-      .header { display: flex; justify-content: space-between; align-items: flex-start; flex: 0 0 auto; margin-bottom: 10px; }
-      .temp-big { font-size: 3.5rem; font-weight: 200; line-height: 1; text-shadow: 0 1px 5px rgba(0,0,0,0.5); }
+      .container { padding: clamp(8px, 3cqi, 16px); height: 100%; display: flex; flex-direction: column; box-sizing: border-box; min-height: 0; overflow: hidden; }
+      .header { display: flex; justify-content: space-between; align-items: flex-start; flex: 0 0 auto; margin-bottom: clamp(4px, 2cqi, 10px); }
+      .temp-big { font-size: clamp(1.8rem, 8cqi, 3.5rem); font-weight: 200; line-height: 1; text-shadow: 0 1px 5px rgba(0,0,0,0.5); white-space: nowrap; }
       .header-right { display: flex; flex-direction: column; align-items: flex-end; text-shadow: 0 1px 5px rgba(0,0,0,0.5); }
-      .main-icon { --mdc-icon-size: 32px; margin-bottom: 4px; filter: drop-shadow(0 1px 5px rgba(0,0,0,0.5)); }
-      .hl-label { font-size: 0.9rem; font-weight: 500; opacity: 0.9; }
+      .main-icon { --mdc-icon-size: clamp(20px, 6cqi, 32px); margin-bottom: 4px; filter: drop-shadow(0 1px 5px rgba(0,0,0,0.5)); }
+      .hl-label { font-size: clamp(0.7rem, 2.5cqi, 0.9rem); font-weight: 500; opacity: 0.9; white-space: nowrap; }
       .forecast-list { display: flex; flex-direction: column; gap: 0; flex: 1 1 auto; overflow: hidden; justify-content: flex-start; text-shadow: 0 1px 3px rgba(0,0,0,0.8); }
       .row { display: grid; grid-template-columns: 50px 30px 1fr; align-items: center; font-size: 0.95rem; height: 32px; }
       .day-name { font-weight: 600; opacity: 0.9; }

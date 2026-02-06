@@ -323,6 +323,7 @@ export class SimpleClimateCard extends LitElement {
         box-shadow: var(--ha-card-box-shadow, none);
         cursor: pointer;
         color: white;
+        container-type: inline-size; /* Enable container query units (cqi) */
       }
       .bg-layer {
         position: absolute;
@@ -333,28 +334,33 @@ export class SimpleClimateCard extends LitElement {
       .container {
         position: relative;
         z-index: 1;
-        padding: 16px;
+        padding: clamp(8px, 3%, 16px);
         height: 100%;
         box-sizing: border-box;
         display: flex;
         flex-direction: column;
-        justify-content: space-between; /* Header at top, Targets at bottom */
+        justify-content: space-between;
+        min-height: 0;
+        overflow: hidden;
       }
       
       .header {
         display: flex;
         justify-content: space-between;
         align-items: flex-start;
+        flex: 0 0 auto;
+        min-height: 0;
       }
       
       .temp-big {
-        font-size: 3.5rem;
+        font-size: clamp(1.8rem, 8cqi, 3.5rem);
         font-weight: 200;
         line-height: 1;
         text-shadow: 0 1px 4px rgba(0,0,0,0.3);
+        white-space: nowrap;
       }
       .temp-big .unit {
-        font-size: 2rem;
+        font-size: clamp(1rem, 4cqi, 2rem);
         vertical-align: top;
         opacity: 0.8;
       }
@@ -364,14 +370,15 @@ export class SimpleClimateCard extends LitElement {
         display: flex;
         flex-direction: column;
         align-items: flex-end;
+        flex: 0 0 auto;
       }
       .main-icon {
-        --mdc-icon-size: 32px;
+        --mdc-icon-size: clamp(20px, 6cqi, 32px);
         filter: drop-shadow(0 1px 2px rgba(0,0,0,0.3));
         margin-bottom: 4px;
       }
       .state-label {
-        font-size: 0.9rem;
+        font-size: clamp(0.65rem, 2.5cqi, 0.9rem);
         font-weight: 500;
         opacity: 0.9;
         text-shadow: 0 1px 2px rgba(0,0,0,0.3);
@@ -379,19 +386,25 @@ export class SimpleClimateCard extends LitElement {
 
       .spacer {
         flex: 1;
+        min-height: 0;
       }
 
       .footer-row {
         display: flex;
         justify-content: space-between;
         align-items: flex-end;
+        flex: 0 0 auto;
+        min-height: 0;
       }
       
       .name {
-        font-size: 1rem;
+        font-size: clamp(0.75rem, 3cqi, 1rem);
         font-weight: 600;
         text-shadow: 0 1px 2px rgba(0,0,0,0.3);
         opacity: 0.9;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
       }
 
       .targets {
@@ -399,8 +412,9 @@ export class SimpleClimateCard extends LitElement {
         align-items: center;
         background: rgba(0,0,0,0.2);
         border-radius: 20px;
-        padding: 4px 12px;
+        padding: 4px clamp(6px, 2%, 12px);
         backdrop-filter: blur(4px);
+        flex: 0 0 auto;
       }
       .target-group {
         display: flex;

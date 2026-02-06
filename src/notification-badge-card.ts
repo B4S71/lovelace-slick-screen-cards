@@ -174,25 +174,30 @@ export class NotificationBadgeCard extends LitElement {
   static styles = css`
     :host {
       display: block;
+      height: 100%;
+      container-type: inline-size;
     }
     
     .badge-container {
         display: flex;
         flex-wrap: wrap;
-        gap: 12px;
+        gap: clamp(6px, 3cqi, 12px);
         align-items: center;
-        justify-content: flex-end; /* Align right */
-        margin-left: 12px;
-        margin-bottom: 12px;
-        padding-bottom: 4px; /* Extra shadow space */
+        align-content: flex-start;
+        justify-content: flex-end;
+        margin-left: clamp(6px, 3cqi, 12px);
+        margin-bottom: clamp(6px, 3cqi, 12px);
+        padding-bottom: 4px;
+        height: 100%;
+        box-sizing: border-box;
+        overflow: hidden;
     }
     
     .badge {
         position: relative;
-        width: 38px;
-        height: 38px;
+        width: clamp(28px, 10cqi, 38px);
+        height: clamp(28px, 10cqi, 38px);
         border-radius: 50%;
-        /* Default fallback */
         background: var(--primary-color);
         display: flex;
         align-items: center;
@@ -203,6 +208,7 @@ export class NotificationBadgeCard extends LitElement {
         border: 1px solid transparent;
         box-sizing: border-box;
         box-shadow: 0 1px 3px rgba(0,0,0,0.12);
+        flex: 0 0 auto;
     }
     
     /* Make entities feel more solid/pronounced */

@@ -122,26 +122,29 @@ export class PersonCard extends LitElement {
     :host {
       display: block;
       height: 100%;
+      container-type: inline-size;
     }
     .person-container {
       display: flex;
       flex-wrap: wrap;
-      gap: 12px;
+      gap: clamp(6px, 3cqi, 12px);
       justify-content: flex-start;
       height: 100%;
       box-sizing: border-box;
       align-content: flex-start;
-      margin-right: 12px;
-      margin-bottom: 12px;
+      margin-right: clamp(6px, 3cqi, 12px);
+      margin-bottom: clamp(6px, 3cqi, 12px);
+      overflow: hidden;
     }
     .person-container.horizontal {
       flex-wrap: nowrap;
       overflow-x: auto;
-      padding-bottom: 4px; /* Space for scrollbar if visible */
-      scrollbar-width: none; /* Hide scrollbar Firefox */
+      overflow-y: hidden;
+      padding-bottom: 4px;
+      scrollbar-width: none;
     }
     .person-container.horizontal::-webkit-scrollbar { 
-      display: none; /* Hide scrollbar Chrome/Safari/Webkit */
+      display: none;
     }
     
     .person-card {

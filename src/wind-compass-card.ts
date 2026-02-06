@@ -163,17 +163,21 @@ export class WindCompassCard extends HTMLElement {
         }
 
         .container {
-          padding: 20px;
+          padding: clamp(8px, 3%, 20px);
           display: flex;
           flex-direction: column;
-          gap: 20px;
+          gap: clamp(8px, 3%, 20px);
+          height: 100%;
+          box-sizing: border-box;
+          overflow: hidden;
         }
 
         /* --- COMPASS AREA --- */
         .compass-container {
           position: relative;
           width: 100%;
-          height: 90px;
+          flex: 1 1 auto;
+          min-height: 40px;
           background: transparent;
           border-radius: 12px;
           
@@ -292,6 +296,7 @@ export class WindCompassCard extends HTMLElement {
           display: flex;
           flex-direction: column;
           gap: 8px;
+          flex: 0 0 auto;
         }
 
         .speed-bar-bg {
@@ -350,7 +355,7 @@ export class WindCompassCard extends HTMLElement {
         }
 
         .speed-text .value {
-          font-size: 3.5rem;
+          font-size: clamp(1.5rem, 8cqmax, 3.5rem);
           font-weight: 200;
           letter-spacing: -1px;
           line-height: 1;
@@ -377,13 +382,14 @@ export class WindCompassCard extends HTMLElement {
 
         :host(.simple-mode) .container {
            padding: 0;
-           height: 120px; /* Increased to separate text and compass */
+           height: 100%;
            position: relative;
         }
 
         :host(.simple-mode) .compass-container {
-           height: 60px; /* Thinner */
-           margin-top: 60px; /* Pushed down to clear speed text */
+           flex: 1 1 auto;
+           min-height: 30px;
+           margin-top: 50px;
            -webkit-mask-image: linear-gradient(to right, transparent, black 15%, black 85%, transparent);
            mask-image: linear-gradient(to right, transparent, black 15%, black 85%, transparent);
         }

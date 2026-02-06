@@ -315,6 +315,7 @@ export class EnergyFlowCard extends LitElement {
         overflow: hidden;
         position: relative;
         background: black; /* Fallback */
+        container-type: size;
       }
       
       .bg-layer {
@@ -328,13 +329,15 @@ export class EnergyFlowCard extends LitElement {
       }
       
       .content {
-        padding: 16px;
+        padding: clamp(8px, 3cqi, 16px);
         display: flex;
         flex-direction: column;
         height: 100%;
         box-sizing: border-box;
         position: relative;
         z-index: 1;
+        min-height: 0;
+        overflow: hidden;
       }
       
       /* Header */
@@ -342,13 +345,17 @@ export class EnergyFlowCard extends LitElement {
         display: flex;
         justify-content: space-between;
         align-items: center;
-        margin-bottom: 16px;
+        margin-bottom: clamp(4px, 2cqi, 16px);
+        flex: 0 0 auto;
       }
       .title {
-        font-size: 1.1rem;
+        font-size: clamp(0.85rem, 3cqi, 1.1rem);
         font-weight: 600;
         opacity: 0.9;
         text-shadow: 0 1px 2px rgba(0,0,0,0.2);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
       }
       .status-badge {
         font-size: 0.8rem;
@@ -364,9 +371,10 @@ export class EnergyFlowCard extends LitElement {
       .main-stats {
         display: flex;
         justify-content: space-between;
-        align-items: flex-end; /* Align bottom to keep hierarchy */
+        align-items: flex-end;
         flex-grow: 1;
-        margin-bottom: 16px;
+        margin-bottom: clamp(4px, 2cqi, 16px);
+        min-height: 0;
       }
 
       .stat-block {
@@ -375,25 +383,25 @@ export class EnergyFlowCard extends LitElement {
         align-items: center;
         flex: 1;
         opacity: 0.7;
-        transition: opacity 0.3s ease, transform 0.3s ease;
+        transition: opacity 0.3s ease;
+        min-width: 0;
       }
       .stat-block.active, .stat-block.home {
         opacity: 1;
       }
       .stat-block.home {
-        flex: 1.5; /* Home is wider */
-        transform: translateY(-10px); /* Lift up slightly */
+        flex: 1.5;
       }
 
       .icon-circle {
-        width: 36px;
-        height: 36px;
+        width: clamp(24px, 8cqi, 36px);
+        height: clamp(24px, 8cqi, 36px);
         border-radius: 50%;
         background: rgba(255,255,255,0.15);
         display: flex;
         align-items: center;
         justify-content: center;
-        margin-bottom: 8px;
+        margin-bottom: clamp(2px, 1cqi, 8px);
         box-shadow: 0 4px 10px rgba(0,0,0,0.1);
       }
       .icon-circle svg {
@@ -402,20 +410,21 @@ export class EnergyFlowCard extends LitElement {
       }
       
       .home-icon {
-        width: 48px;
-        height: 48px;
+        width: clamp(32px, 10cqi, 48px);
+        height: clamp(32px, 10cqi, 48px);
         background: rgba(255,255,255,0.25);
       }
       .home-icon svg { width: 28px; height: 28px; }
 
       .stat-value {
-        font-size: 1.1rem;
+        font-size: clamp(0.8rem, 3cqi, 1.1rem);
         font-weight: 600;
         line-height: 1.1;
         text-shadow: 0 1px 3px rgba(0,0,0,0.3);
+        white-space: nowrap;
       }
       .stat-value.big {
-        font-size: 2.2rem;
+        font-size: clamp(1.2rem, 6cqi, 2.2rem);
         font-weight: 700;
         margin-bottom: 2px;
         letter-spacing: -0.5px;
@@ -432,8 +441,9 @@ export class EnergyFlowCard extends LitElement {
       .battery-section {
         background: rgba(0,0,0,0.2);
         border-radius: 10px;
-        padding: 10px 12px;
+        padding: clamp(6px, 2cqi, 10px) clamp(8px, 2cqi, 12px);
         margin-top: auto;
+        flex: 0 0 auto;
       }
       .batt-info {
         display: flex;
