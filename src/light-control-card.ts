@@ -382,11 +382,11 @@ export class LightControlCard extends LitElement {
   }
 }
 
-customElements.define('custom:slick-light-control-card', LightControlCard);
+customElements.define('slick-light-control-card', LightControlCard);
 
 window.customCards = window.customCards || [];
 window.customCards.push({
-  type: "custom:slick-light-control-card",
+  type: "slick-light-control-card",
   name: "Slick Light Control",
   description: "A card to control lights (brightness, color temp) and associated covers.",
   preview: true, // Optional, enables preview in the picker if supported

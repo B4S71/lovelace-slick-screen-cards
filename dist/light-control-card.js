@@ -226,5 +226,5 @@ const A=globalThis,E=t=>t,w=A.trustedTypes,x=w?w.createPolicy("lit-html",{create
       .control-btn ha-icon {
         --mdc-icon-size: 20px;
       }
-    `}}customElements.define("custom:slick-light-control-card",ht),window.customCards=window.customCards||[],window.customCards.push({type:"custom:slick-light-control-card",name:"Slick Light Control",description:"A card to control lights (brightness, color temp) and associated covers.",preview:!0});export{ht as LightControlCard};
+    `}}customElements.define("slick-light-control-card",ht),window.customCards=window.customCards||[],window.customCards.push({type:"slick-light-control-card",name:"Slick Light Control",description:"A card to control lights (brightness, color temp) and associated covers.",preview:!0});export{ht as LightControlCard};
 //# sourceMappingURL=light-control-card.js.map
