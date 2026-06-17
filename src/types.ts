@@ -93,10 +93,7 @@ export interface MiniWeatherCardConfig extends LovelaceCardConfig {
   title?: string;
   mode?: 'daily' | 'hourly';
   temp_sensor?: string;
-  history_entity?: string;
   sun_entity?: string;
-  sampling_size?: number;
-  history_hours?: number;
 }
 
 export interface ForecastData {
@@ -106,11 +103,6 @@ export interface ForecastData {
   temp_max?: number;
   templow?: number;
   temp_min?: number;
-}
-
-export interface HistoryDataPoint {
-  time: number;
-  state: number;
 }
 
 // Squircle Clock Card Types
@@ -127,6 +119,11 @@ export interface SimpleClimateCardConfig extends LovelaceCardConfig {
   type: 'custom:slick-simple-climate-card';
   entity: string;
   name?: string;
+  hot_water_entity?: string;
+  show_heating_graph?: boolean;
+  show_hot_water_graph?: boolean;
+  heating_graph_entity?: string;
+  hot_water_graph_entity?: string;
   sensors?: {
     temp?: string;        // override current temp
     target_high?: string; // override target high
@@ -142,6 +139,10 @@ export interface EnergyFlowCardConfig extends LovelaceCardConfig {
   grid_import_entity?: string; // Optional separate
   grid_export_entity?: string; // Optional separate
   solar_entity?: string;
+  solar_today_energy_entity?: string;
+  solar_expected_energy_entity?: string;
+  solar_total_energy_entity?: string;
+  solar_remaining_energy_entity?: string;
   battery_entity?: string;
   battery_soc_entity?: string;
   home_entity?: string;

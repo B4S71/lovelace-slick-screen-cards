@@ -118,17 +118,16 @@ export class PersonCard extends LitElement {
     :host {
       display: block;
       height: 100%;
-      container-type: inline-size;
     }
     .person-container {
       display: flex;
       flex-wrap: nowrap;
-      gap: clamp(6px, 3cqi, 12px);
+      gap: 8px;
       justify-content: flex-end;
       align-items: center;
       height: 100%;
       box-sizing: border-box;
-      padding: clamp(6px, 3cqi, 12px);
+      padding: 8px;
       overflow: hidden;
     }
     .person-container.horizontal {

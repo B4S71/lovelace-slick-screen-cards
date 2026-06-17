@@ -175,16 +175,15 @@ export class NotificationBadgeCard extends LitElement {
     :host {
       display: block;
       height: 100%;
-      container-type: inline-size;
     }
     
     .badge-container {
         display: flex;
         flex-wrap: nowrap;
-        gap: clamp(6px, 3cqi, 12px);
+        gap: 8px;
         align-items: center;
         justify-content: flex-end;
-        padding: clamp(6px, 3cqi, 12px);
+        padding: 8px;
         height: 100%;
         box-sizing: border-box;
         overflow: hidden;
@@ -192,8 +191,8 @@ export class NotificationBadgeCard extends LitElement {
     
     .badge {
         position: relative;
-        width: clamp(28px, 10cqi, 38px);
-        height: clamp(28px, 10cqi, 38px);
+        width: 38px;
+        height: 38px;
         border-radius: 50%;
         background: var(--primary-color);
         display: flex;

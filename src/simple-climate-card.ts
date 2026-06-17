@@ -4,10 +4,23 @@
  */
 
 import { LitElement, html, css } from 'lit';
+import {
+  Chart,
+  LineController,
+  LineElement,
+  PointElement,
+  LinearScale,
+  CategoryScale,
+  Filler,
+  Tooltip,
+} from 'chart.js';
 import type {
   HomeAssistant,
   SimpleClimateCardConfig,
+  HistoryState,
 } from './types';
+
+Chart.register(LineController, LineElement, PointElement, LinearScale, CategoryScale, Filler, Tooltip);
 
 const CARD_VERSION = "0.2.0";
 
@@ -17,9 +30,24 @@ console.info(
   'color: #ff9800; background: white; font-weight: 700;'
 );
 
+interface GraphSource {
+  entityId: string;
+  attributeKey?: string;
+}
+
+interface GraphHistory {
+  points: number[];
+  unit?: string;
+  fetchedAt: number;
+}
+
 export class SimpleClimateCard extends LitElement {
   hass!: HomeAssistant;
   config!: SimpleClimateCardConfig;
+  private _graphHistory: Record<string, GraphHistory> = {};
+  private _graphFetchInFlight = new Set<string>();
+  private _graphCacheMs = 5 * 60 * 1000;
+  private _charts = new Map<string, Chart>();
 
   static get properties() {
     return {
@@ -40,12 +68,171 @@ export class SimpleClimateCard extends LitElement {
     };
   }
 
+  getCardSize() {
+    return 2;
+  }
+
+  getLayoutOptions() {
+    return {
+      grid_rows: 2,
+      grid_columns: 2,
+      grid_min_rows: 1,
+      grid_min_columns: 1,
+    };
+  }
+
   setConfig(config: SimpleClimateCardConfig) {
     if (!config) throw new Error("Invalid configuration");
     this.config = { name: "Climate", ...config };
 
     if (this.config.name && typeof this.config.name !== 'string') throw new Error("name must be a string");
+    if (this.config.hot_water_entity && typeof this.config.hot_water_entity !== 'string') throw new Error("hot_water_entity must be a string");
     if (this.config.sensors && typeof this.config.sensors !== 'object') throw new Error("sensors must be an object");
+  }
+
+  disconnectedCallback(): void {
+    for (const chart of this._charts.values()) {
+      chart.destroy();
+    }
+    this._charts.clear();
+    super.disconnectedCallback();
+  }
+
+  protected updated(): void {
+    this._syncCharts();
+  }
+
+  private _getChartPalette(colorClass: string): { line: string; fill: string } {
+    if (colorClass === 'tank-graph') {
+      return {
+        line: '#9ad9ff',
+        fill: 'rgba(79, 195, 247, 0.2)',
+      };
+    }
+
+    return {
+      line: '#ffd59a',
+      fill: 'rgba(255, 183, 77, 0.2)',
+    };
+  }
+
+  private _syncCharts(): void {
+    const canvases = this.renderRoot.querySelectorAll<HTMLCanvasElement>('canvas.graph-canvas[data-key]');
+    const activeKeys = new Set<string>();
+
+    canvases.forEach((canvas) => {
+      const key = canvas.dataset.key;
+      const colorClass = canvas.dataset.colorClass || 'heating-graph';
+      if (!key) return;
+
+      activeKeys.add(key);
+      const graph = this._graphHistory[key];
+      if (!graph?.points?.length) return;
+
+      const palette = this._getChartPalette(colorClass);
+      const labels = graph.points.map((_, index) => index);
+      const pointCount = graph.points.length;
+      const existing = this._charts.get(key);
+
+      if (existing && existing.canvas === canvas) {
+        existing.data.labels = labels;
+        const dataset = existing.data.datasets[0] as any;
+        dataset.data = graph.points;
+        dataset.borderColor = palette.line;
+        dataset.backgroundColor = palette.fill;
+        dataset.tension = 0.58;
+        dataset.cubicInterpolationMode = 'monotone';
+        existing.update('none');
+        return;
+      }
+
+      if (existing) {
+        existing.destroy();
+      }
+
+      const context = canvas.getContext('2d');
+      if (!context) return;
+
+      const chart = new Chart(context, {
+        type: 'line',
+        data: {
+          labels,
+          datasets: [
+            {
+              data: graph.points,
+              borderColor: palette.line,
+              backgroundColor: palette.fill,
+              fill: true,
+              tension: 0.58,
+              cubicInterpolationMode: 'monotone',
+              borderWidth: 1.7,
+              pointRadius: (ctx) => (ctx.dataIndex === pointCount - 1 ? 1.8 : 0),
+              pointHoverRadius: 0,
+              pointBackgroundColor: palette.line,
+              pointBorderColor: 'rgba(0, 0, 0, 0.35)',
+              pointBorderWidth: 0.6,
+            },
+          ],
+        },
+        options: {
+          animation: false,
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false },
+            tooltip: { enabled: false },
+          },
+          scales: {
+            x: { display: false, grid: { display: false }, border: { display: false } },
+            y: { display: false, grid: { display: false }, border: { display: false } },
+          },
+          elements: {
+            line: { capBezierPoints: true },
+          },
+          layout: {
+            padding: { top: 2, right: 0, bottom: 1, left: 0 },
+          },
+        },
+      });
+
+      this._charts.set(key, chart);
+    });
+
+    for (const [key, chart] of this._charts.entries()) {
+      if (!activeKeys.has(key)) {
+        chart.destroy();
+        this._charts.delete(key);
+      }
+    }
+  }
+
+  private _formatTemperature(value: unknown): string {
+    const numericValue = typeof value === 'number' ? value : parseFloat(String(value));
+    return Number.isFinite(numericValue) ? `${numericValue}°` : '--';
+  }
+
+  private _getClimateModeIcon(stateObj: any): string {
+    const mode = String(stateObj?.state || stateObj?.attributes?.hvac_action || '').toLowerCase();
+
+    if (mode === 'heat' || mode === 'heating') return 'mdi:fire';
+    if (mode === 'cool' || mode === 'cooling') return 'mdi:snowflake';
+    if (mode === 'heat_cool' || mode === 'auto') return 'mdi:autorenew';
+    if (mode === 'off') return 'mdi:power-off';
+
+    return 'mdi:thermostat';
+  }
+
+  private _getHotWaterModeIcon(stateObj?: any): string {
+    const rawMode = stateObj?.attributes?.operation_mode || stateObj?.attributes?.preset_mode || stateObj?.state || '';
+    const mode = String(rawMode).toLowerCase();
+
+    if (mode.includes('eco')) return 'mdi:leaf';
+    if (mode.includes('high') || mode.includes('boost') || mode.includes('performance') || mode.includes('power') || mode.includes('hoch')) {
+      return 'mdi:fire';
+    }
+    if (mode === 'off') return 'mdi:power-off';
+
+    return 'mdi:water-thermometer';
   }
 
   private _interpolateColor(c1: string, c2: string, factor: number): string {
@@ -164,6 +351,126 @@ export class SimpleClimateCard extends LitElement {
     return `linear-gradient(180deg, ${cGrey} 0%, ${cDarkGrey} 100%)`;
   }
 
+  private _getGraphCacheKey(source: GraphSource): string {
+    return source.attributeKey ? `${source.entityId}::${source.attributeKey}` : source.entityId;
+  }
+
+  private _resolveHeatingGraphSource(entityId: string): GraphSource {
+    if (this.config.heating_graph_entity) {
+      return { entityId: this.config.heating_graph_entity };
+    }
+    if (this.config.sensors?.temp) {
+      return { entityId: this.config.sensors.temp };
+    }
+    return { entityId, attributeKey: 'current_temperature' };
+  }
+
+  private _resolveHotWaterGraphSource(hotWaterEntityId?: string): GraphSource | undefined {
+    if (this.config.hot_water_graph_entity) {
+      return { entityId: this.config.hot_water_graph_entity };
+    }
+    if (!hotWaterEntityId) {
+      return undefined;
+    }
+    return { entityId: hotWaterEntityId, attributeKey: 'current_temperature' };
+  }
+
+  private _isGraphFresh(source: GraphSource): boolean {
+    const key = this._getGraphCacheKey(source);
+    const entry = this._graphHistory[key];
+    if (!entry) return false;
+    return Date.now() - entry.fetchedAt < this._graphCacheMs;
+  }
+
+  private async _ensureGraphHistory(source: GraphSource): Promise<void> {
+    const key = this._getGraphCacheKey(source);
+    if (this._isGraphFresh(source) || this._graphFetchInFlight.has(key)) {
+      return;
+    }
+
+    this._graphFetchInFlight.add(key);
+
+    const endTime = new Date();
+    const startTime = new Date(endTime.getTime() - 24 * 60 * 60 * 1000);
+
+    try {
+      const history = await this.hass.callApi<HistoryState[][]>(
+        'GET',
+        `history/period/${startTime.toISOString()}?filter_entity_id=${encodeURIComponent(source.entityId)}&end_time=${endTime.toISOString()}`
+      );
+
+      const series = history?.[0] || [];
+      const rawValues = series
+        .map((entry) => {
+          if (source.attributeKey) {
+            return parseFloat(String(entry.attributes?.[source.attributeKey]));
+          }
+          return parseFloat(String(entry.state));
+        })
+        .filter((value) => Number.isFinite(value));
+
+      const targetCount = Math.max(72, Math.min(180, Math.round((this.getBoundingClientRect().width || 300) / 2.5)));
+      const points = this._downsamplePoints(rawValues, targetCount);
+      const unit = this.hass.states[source.entityId]?.attributes?.unit_of_measurement || '°C';
+
+      this._graphHistory[key] = {
+        points,
+        unit,
+        fetchedAt: Date.now(),
+      };
+    } catch (err) {
+      console.error('SimpleClimate: Graph history fetch failed', source, err);
+    } finally {
+      this._graphFetchInFlight.delete(key);
+      this.requestUpdate();
+    }
+  }
+
+  private _downsamplePoints(values: number[], targetCount: number): number[] {
+    if (values.length <= targetCount) return values;
+    const result: number[] = [];
+    const step = (values.length - 1) / (targetCount - 1);
+    for (let i = 0; i < targetCount; i++) {
+      const idx = Math.round(i * step);
+      result.push(values[idx]);
+    }
+    return result;
+  }
+
+  private _renderGraphTile(label: string, source: GraphSource, colorClass: string) {
+    const cacheKey = this._getGraphCacheKey(source);
+    const graph = this._graphHistory[cacheKey];
+
+    if (!graph || !this._isGraphFresh(source)) {
+      void this._ensureGraphHistory(source);
+    }
+
+    const values = graph?.points || [];
+    const latest = values.length ? values[values.length - 1] : undefined;
+    const min = values.length ? Math.min(...values) : undefined;
+    const max = values.length ? Math.max(...values) : undefined;
+
+    return html`
+      <div class="graph-tile ${colorClass}">
+        <div class="graph-head">
+          <div class="graph-title">${label}</div>
+          <div class="graph-value">${latest !== undefined ? `${latest.toFixed(1)}${graph?.unit || '°C'}` : '--'}</div>
+        </div>
+        <div class="graph-body">
+          ${values.length
+            ? html`
+                <canvas class="graph-canvas" data-key="${cacheKey}" data-color-class="${colorClass}" aria-hidden="true"></canvas>
+                <div class="graph-scale">
+                  <span>${max !== undefined ? `${max.toFixed(1)}${graph?.unit || '°C'}` : '--'}</span>
+                  <span>${min !== undefined ? `${min.toFixed(1)}${graph?.unit || '°C'}` : '--'}</span>
+                </div>
+              `
+            : html`<div class="graph-empty">No 24h data</div>`}
+        </div>
+      </div>
+    `;
+  }
+
   render() {
     // If config is missing, we can't do anything
     if (!this.config) return html``;
@@ -217,6 +524,13 @@ export class SimpleClimateCard extends LitElement {
         targetHigh = parseFloat(this.hass.states[this.config.sensors.target_high].state);
     }
 
+    const hotWaterEntityId = this.config.hot_water_entity;
+    const hotWaterStateObj = hotWaterEntityId ? this.hass.states[hotWaterEntityId] : undefined;
+    const showHeatingGraph = Boolean(this.config.show_heating_graph);
+    const showHotWaterGraph = Boolean(this.config.show_hot_water_graph && hotWaterEntityId);
+    const heatingGraphSource = showHeatingGraph ? this._resolveHeatingGraphSource(entityId) : undefined;
+    const hotWaterGraphSource = showHotWaterGraph ? this._resolveHotWaterGraphSource(hotWaterEntityId) : undefined;
+
     const gradient = this._getGradient(stateObj, currentTemp, targetLow, targetHigh);
 
     // Labels
@@ -233,15 +547,27 @@ export class SimpleClimateCard extends LitElement {
     else if (action === 'idle') icon = 'mdi:check-circle-outline';
     else if (action === 'off') icon = 'mdi:power-off';
 
+    const graphTiles = [];
+    if (heatingGraphSource) {
+      graphTiles.push(this._renderGraphTile('Inside 24h', heatingGraphSource, 'heating-graph'));
+    }
+    if (hotWaterGraphSource) {
+      graphTiles.push(this._renderGraphTile('Tank 24h', hotWaterGraphSource, 'tank-graph'));
+    }
+    const graphColumnsClass = graphTiles.length === 2 ? 'two-cols' : 'one-col';
+
     return html`
       <ha-card @click="${this._openMoreInfo}">
         <div class="bg-layer" style="background: ${gradient};"></div>
         
         <div class="container">
           <div class="header">
+           <div class="header-left">
+             <div class="name">${name}</div>
              <div class="temp-big">
-                ${currentTemp !== undefined ? html`${currentTemp}<span class="unit">°</span>` : '--'}
+              ${currentTemp !== undefined ? html`${currentTemp}<span class="unit">°</span>` : '--'}
              </div>
+           </div>
              <div class="header-right">
                 <ha-icon icon="${icon}" class="main-icon"></ha-icon>
                 <div class="state-label">${stateLabel}</div>
@@ -250,57 +576,116 @@ export class SimpleClimateCard extends LitElement {
 
           <div class="spacer"></div>
 
-          <div class="footer-row">
-             <div class="footer-info">
-               <div class="name">${name}</div>
+         <div class="metrics-row">
+           <div class="footer-metrics">
+               <div class="targets">
+                 ${this._renderTargets(stateObj, targetLow, targetHigh)}
+               </div>
+               ${this._renderHotWater(hotWaterStateObj)}
              </div>
-             <div class="targets">
-                ${this._renderTargets(stateObj, targetLow, targetHigh)}
-             </div>
-          </div>
+         </div>
+
+          ${graphTiles.length
+            ? html`
+                <div class="graph-row ${graphColumnsClass}">
+                  ${graphTiles}
+                </div>
+              `
+            : html``}
         </div>
       </ha-card>
     `;
   }
 
-  _renderTargets(stateObj: any, low: number, high: number) {
-     const mode = stateObj.state;
-     // If off, show nothing or just "Off"
-     if (mode === 'off') return html`<div class="target-chip">OFF</div>`;
-
-     // heat_cool -> show both
-     // heat -> show low
-     // cool -> show high
-     // But hvac_modes might allow more.
-     
-     // Simplification: If we have distinct low/high, show range. If same, show one.
-     if (low !== undefined && high !== undefined && low !== high) {
-         return html`
-            <div class="target-group">
-               <div class="target-label">Min</div>
-               <div class="target-val">${low}°</div>
-            </div>
-            <div class="divider"></div>
-            <div class="target-group">
-               <div class="target-label">Max</div>
-               <div class="target-val">${high}°</div>
-            </div>
-         `;
-     }
-     
-     // Single target
-     return html`
-        <div class="target-group">
-           <div class="target-label">Target</div>
-           <div class="target-val">${low ?? high ?? '--'}°</div>
+    _renderTargets(stateObj: any, low: number, high: number) {
+      const mode = stateObj.state;
+      const modeIcon = this._getClimateModeIcon(stateObj);
+      const segments = [];
+      segments.push(html`
+        <div class="target-icon-wrap">
+          <ha-icon icon="${modeIcon}" class="bubble-icon"></ha-icon>
         </div>
-     `;
-  }
+      `);
+       // If off, show state chip but still allow hot water details.
+       if (mode === 'off') {
+          segments.push(html`<div class="divider"></div>`);
+          segments.push(html`<div class="target-chip">OFF</div>`);
+       } else {
+          segments.push(html`<div class="divider"></div>`);
+
+          // heat_cool -> show both
+          // heat -> show low
+          // cool -> show high
+          // But hvac_modes might allow more.
+        
+          // Simplification: If we have distinct low/high, show range. If same, show one.
+          if (low !== undefined && high !== undefined && low !== high) {
+            segments.push(html`
+              <div class="target-group">
+                <div class="target-label">Min</div>
+                <div class="target-val">${this._formatTemperature(low)}</div>
+              </div>
+              <div class="divider"></div>
+              <div class="target-group">
+                <div class="target-label">Max</div>
+                <div class="target-val">${this._formatTemperature(high)}</div>
+              </div>
+            `);
+          } else {
+            segments.push(html`
+              <div class="target-group">
+                <div class="target-label">Target</div>
+                <div class="target-val">${this._formatTemperature(low ?? high)}</div>
+              </div>
+            `);
+          }
+        }
+
+      return html`${segments}`;
+    }
+
+    _renderHotWater(hotWaterStateObj?: any) {
+      if (!hotWaterStateObj) {
+        return html``;
+      }
+
+      const hotWaterEntityId = hotWaterStateObj.entity_id;
+      const setTemperature = hotWaterStateObj.attributes.temperature;
+      const tankTemperature = hotWaterStateObj.attributes.current_temperature;
+      const modeIcon = this._getHotWaterModeIcon(hotWaterStateObj);
+
+      return html`
+        <div
+          class="targets hot-water-bubble"
+          @click=${(ev: Event) => this._openEntityMoreInfo(hotWaterEntityId, ev)}
+        >
+          <div class="target-icon-wrap">
+            <ha-icon icon="${modeIcon}" class="bubble-icon"></ha-icon>
+          </div>
+          <div class="divider"></div>
+          <div class="target-group">
+            <div class="target-label">Set</div>
+            <div class="target-val">${this._formatTemperature(setTemperature)}</div>
+          </div>
+          <div class="divider"></div>
+          <div class="target-group">
+            <div class="target-label">Temp</div>
+            <div class="target-val">${this._formatTemperature(tankTemperature)}</div>
+          </div>
+        </div>
+      `;
+    }
 
   _openMoreInfo() {
-    if (this.config.entity) {
+    this._openEntityMoreInfo(this.config.entity);
+  }
+
+  _openEntityMoreInfo(entityId?: string, ev?: Event) {
+    ev?.stopPropagation();
+
+    if (entityId) {
       const event = new CustomEvent("hass-more-info", {
-        detail: { entityId: this.config.entity },
+        detail: { entityId },
         bubbles: true,
         composed: true,
       });
@@ -351,6 +736,13 @@ export class SimpleClimateCard extends LitElement {
         flex: 0 0 auto;
         min-height: 0;
       }
+
+      .header-left {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        min-width: 0;
+      }
       
       .temp-big {
         font-size: clamp(2rem, 10cqi, 4rem);
@@ -359,6 +751,7 @@ export class SimpleClimateCard extends LitElement {
         text-shadow: 0 1px 4px rgba(0,0,0,0.3);
         white-space: nowrap;
         letter-spacing: -1px;
+        margin-top: 2px;
       }
       .temp-big .unit {
         font-size: clamp(1rem, 4cqi, 2.2rem);
@@ -376,6 +769,8 @@ export class SimpleClimateCard extends LitElement {
       }
       .main-icon {
         --mdc-icon-size: clamp(22px, 7cqi, 36px);
+        width: clamp(22px, 7cqi, 36px);
+        height: clamp(22px, 7cqi, 36px);
         filter: drop-shadow(0 1px 2px rgba(0,0,0,0.3));
         margin-bottom: 4px;
       }
@@ -394,12 +789,20 @@ export class SimpleClimateCard extends LitElement {
         min-height: 0;
       }
 
-      .footer-row {
+      .metrics-row {
         display: flex;
-        justify-content: space-between;
-        align-items: flex-end;
+        justify-content: flex-end;
+        align-items: center;
         flex: 0 0 auto;
         min-height: 0;
+        margin-bottom: 6px;
+      }
+      .footer-metrics {
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        gap: 10px;
+        flex-wrap: wrap;
       }
       
       .name {
@@ -410,6 +813,7 @@ export class SimpleClimateCard extends LitElement {
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
+        max-width: 100%;
       }
 
       .targets {
@@ -417,33 +821,165 @@ export class SimpleClimateCard extends LitElement {
         align-items: center;
         background: rgba(0,0,0,0.2);
         border-radius: 20px;
-        padding: 4px clamp(6px, 2%, 12px);
+        padding: 8px clamp(10px, 3%, 14px);
         backdrop-filter: blur(4px);
         flex: 0 0 auto;
+        max-width: 100%;
+        overflow: hidden;
       }
       .target-group {
         display: flex;
         flex-direction: column;
         align-items: flex-end;
+        min-width: 0;
+      }
+      .target-icon-wrap {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-width: clamp(14px, 2.5cqi, 18px);
       }
       .target-label {
-        font-size: clamp(0.5rem, 2cqi, 0.65rem);
+        font-size: clamp(0.55rem, 2cqi, 0.7rem);
         text-transform: uppercase;
         opacity: 0.7;
       }
       .target-val {
-        font-size: clamp(0.85rem, 3cqi, 1.1rem);
+        font-size: clamp(0.75rem, 2.4cqi, 0.95rem);
         font-weight: 400;
+        white-space: nowrap;
       }
       .divider {
         width: 1px;
-        height: 24px;
+        height: 28px;
         background: rgba(255,255,255,0.3);
-        margin: 0 10px;
+        margin: 0 12px;
+      }
+      .bubble-icon {
+        --mdc-icon-size: clamp(14px, 2.6cqi, 18px);
+        width: clamp(14px, 2.6cqi, 18px);
+        height: clamp(14px, 2.6cqi, 18px);
+        opacity: 0.95;
+      }
+      .hot-water-bubble {
+        flex-shrink: 0;
+        cursor: pointer;
       }
       .target-chip {
         font-weight: 400;
-        font-size: clamp(0.7rem, 2.5cqi, 0.9rem);
+        font-size: clamp(0.75rem, 2.4cqi, 0.95rem);
+      }
+
+      .graph-row {
+        display: grid;
+        gap: 8px;
+        margin-top: 0;
+      }
+      .graph-row.one-col {
+        grid-template-columns: 1fr;
+      }
+      .graph-row.two-cols {
+        grid-template-columns: 1fr 1fr;
+      }
+      .graph-tile {
+        background: rgba(0, 0, 0, 0.2);
+        border-radius: 12px;
+        padding: 9px 11px;
+        backdrop-filter: blur(4px);
+        min-width: 0;
+      }
+      .graph-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        gap: 8px;
+      }
+      .graph-title {
+        font-size: clamp(0.56rem, 1.8cqi, 0.7rem);
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        opacity: 0.72;
+      }
+      .graph-value {
+        font-size: clamp(0.7rem, 2.1cqi, 0.9rem);
+        font-weight: 450;
+        white-space: nowrap;
+      }
+      .graph-body {
+        margin-top: 5px;
+        height: 60px;
+        position: relative;
+        display: grid;
+        grid-template-rows: minmax(0, 1fr) auto;
+        row-gap: 4px;
+        min-height: 0;
+      }
+      .graph-body .graph-canvas {
+        width: 100%;
+        height: 100%;
+        min-height: 28px;
+        display: block;
+      }
+      .graph-grid {
+        stroke: rgba(255, 255, 255, 0.14);
+        stroke-width: 0.6;
+        shape-rendering: crispEdges;
+      }
+      .sparkline {
+        fill: none;
+        stroke-width: 1.7;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+        vector-effect: non-scaling-stroke;
+      }
+      .sparkline-fill {
+        stroke: none;
+      }
+      .sparkline-dot {
+        stroke: rgba(0, 0, 0, 0.35);
+        stroke-width: 0.6;
+      }
+      .heating-graph .sparkline {
+        stroke: #ffd59a;
+      }
+      .heating-graph .sparkline-fill {
+        fill: rgba(255, 183, 77, 0.2);
+      }
+      .heating-graph .sparkline-dot {
+        fill: #ffd59a;
+      }
+      .tank-graph .sparkline {
+        stroke: #9ad9ff;
+      }
+      .tank-graph .sparkline-fill {
+        fill: rgba(79, 195, 247, 0.2);
+      }
+      .tank-graph .sparkline-dot {
+        fill: #9ad9ff;
+      }
+      .graph-scale {
+        margin-top: 2px;
+        display: flex;
+        justify-content: space-between;
+        font-size: clamp(0.64rem, 1.92cqi, 0.78rem);
+        font-weight: 520;
+        opacity: 0.76;
+        line-height: 1.1;
+      }
+      .graph-scale span {
+        white-space: nowrap;
+      }
+      .graph-empty {
+        font-size: clamp(0.6rem, 1.8cqi, 0.72rem);
+        opacity: 0.75;
+        line-height: 50px;
+        text-align: center;
+      }
+
+      @container (max-width: 280px) {
+        .graph-row.two-cols {
+          grid-template-columns: 1fr;
+        }
       }
     `;
   }
@@ -477,7 +1013,12 @@ class SimpleClimateCardEditor extends LitElement {
       
       const schema = [
         { name: "entity", label: "Entity", selector: { entity: { domain: "climate" } } },
-        { name: "name", label: "Name", selector: { text: {} } }
+         { name: "name", label: "Name", selector: { text: {} } },
+        { name: "hot_water_entity", label: "Hot Water Entity", selector: { entity: { domain: "water_heater" } } },
+        { name: "show_heating_graph", label: "Show Heating 24h Graph", selector: { boolean: {} } },
+        { name: "heating_graph_entity", label: "Heating Graph Entity (optional)", selector: { entity: {} } },
+        { name: "show_hot_water_graph", label: "Show Hot Water 24h Graph", selector: { boolean: {} } },
+        { name: "hot_water_graph_entity", label: "Hot Water Graph Entity (optional)", selector: { entity: {} } }
       ];
 
       return html`

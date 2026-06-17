@@ -4,7 +4,7 @@
   "description": "Collection of professional custom cards for Home Assistant",
   "main": "dist/slick-screen-cards.js",
   "scripts": {
-    "build": "rollup -c && cp dist/slick-screen-cards.js slick-screen-cards.js",
+    "build": "rollup -c && cp dist/slick-screen-cards.js slick-screen-cards.js && node scripts/bump-resource-query.cjs",
     "watch": "rollup -c --watch",
     "lint": "eslint src/**/*.ts"
   },
@@ -30,5 +30,8 @@
     "rollup": "^4.9.6",
     "tslib": "^2.6.2",
     "typescript": "^5.3.3"
+  },
+  "dependencies": {
+    "chart.js": "^4.5.1"
   }
 }

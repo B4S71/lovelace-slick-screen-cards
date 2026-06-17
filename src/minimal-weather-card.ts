@@ -8,56 +8,17 @@ import type {
   HomeAssistant,
   MiniWeatherCardConfig,
   ForecastData,
-  HistoryDataPoint,
 } from './types';
 
 const CARD_VERSION = "0.2.0";
+const BAR_COLOR_MIN_TEMP = -20;
+const BAR_COLOR_MAX_TEMP = 35;
 
 console.info(
   `%c MINI-WEATHER-CARD %c ${CARD_VERSION} `,
   'color: white; background: #2980b9; font-weight: 700;',
   'color: #2980b9; background: white; font-weight: 700;'
 );
-
-// ----------------------------------------------------------------------
-// CATMULL-ROM SPLINE LOGIK
-// ----------------------------------------------------------------------
-function catmullRom2bezier(x: number[], k: number): number[][] {
-  const n = x.length - 1;
-  if (n < 1) return [];
-  const result: number[][] = [];
-  const x1 = x[0], y1 = x[1];
-  result.push([x1, y1]);
-
-  for (let i = 0; i < n - 1; i++) {
-    const p0 = i === 0 ? [x[0], x[1]] : [x[(i - 1) * 2], x[(i - 1) * 2 + 1]];
-    const p1 = [x[i * 2], x[i * 2 + 1]];
-    const p2 = [x[(i + 1) * 2], x[(i + 1) * 2 + 1]];
-    const p3 = i + 2 > n ? p2 : [x[(i + 2) * 2], x[(i + 2) * 2 + 1]];
-
-    const cp1x = p1[0] + (p2[0] - p0[0]) / 6 * k;
-    const cp1y = p1[1] + (p2[1] - p0[1]) / 6 * k;
-    const cp2x = p2[0] - (p3[0] - p1[0]) / 6 * k;
-    const cp2y = p2[1] - (p3[1] - p1[1]) / 6 * k;
-
-    result.push([cp1x, cp1y, cp2x, cp2y, p2[0], p2[1]]);
-  }
-  return result;
-}
-
-function generateSmoothPath(points: number[][]): string {
-  if (points.length < 2) return "";
-  const flatPoints = points.reduce((acc, p) => [...acc, p[0], p[1]], [] as number[]);
-  const curves = catmullRom2bezier(flatPoints, 1); 
-  if (curves.length === 0) return "";
-
-  let d = `M ${curves[0][0]},${curves[0][1]} `;
-  for (let i = 1; i < curves.length; i++) {
-    const c = curves[i];
-    d += `C ${c[0]},${c[1]} ${c[2]},${c[3]} ${c[4]},${c[5]} `;
-  }
-  return d;
-}
 
 // ----------------------------------------------------------------------
 // TAGESZEIT & FARBVERLÄUFE (basierend auf Sonnenstand)
@@ -193,19 +154,75 @@ export class MiniWeatherCard extends LitElement {
   hass!: HomeAssistant;
   config!: MiniWeatherCardConfig;
   _forecast: ForecastData[] | null = null;
-  _historyData: HistoryDataPoint[] = [];
   _cardHeight: number = 200;
   _cardWidth: number = 300;
   _resizeObserver!: ResizeObserver;
-  _unsub?: () => void;
-  _historyTimeout?: number;
+  _forecastInterval?: number;
+  _forecastRequestToken: number = 0;
+
+  _getCurrentTemperatureValue(): number | undefined {
+    const entityId = this.config?.entity;
+    if (!this.hass || !entityId) return undefined;
+
+    const stateObj = this.hass.states[entityId];
+    let currentTemp: unknown = stateObj?.attributes?.temperature;
+
+    if (this.config.temp_sensor) {
+      const sensorState = this.hass.states[this.config.temp_sensor];
+      if (sensorState) currentTemp = sensorState.state;
+    }
+
+    return this._toOptionalNumber(currentTemp);
+  }
+
+  _getForecastBounds(entries: ForecastData[]): { min: number; max: number } {
+    let min = Infinity;
+    let max = -Infinity;
+
+    for (const entry of entries) {
+      const high = entry.temperature ?? entry.temp_max;
+      const low = entry.templow ?? entry.temp_min;
+
+      if (low !== undefined && low < min) min = low;
+      if (high !== undefined && high > max) max = high;
+      if (low === undefined && high !== undefined && high < min) min = high;
+    }
+
+    if (!isFinite(min)) min = 0;
+    if (!isFinite(max)) max = min + 1;
+    if (max === min) max = min + 1;
+
+    return { min, max };
+  }
+
+  _getBarScaleStyles(low: number, high: number, globalMin: number, globalMax: number): { windowStyle: string; scaleStyle: string } {
+    const safeRange = Math.max(globalMax - globalMin, 0.1);
+    const colorRange = BAR_COLOR_MAX_TEMP - BAR_COLOR_MIN_TEMP;
+    const start = Math.min(low, high);
+    const end = Math.max(low, high);
+    const startPct = Math.min(Math.max(((start - globalMin) / safeRange) * 100, 0), 100);
+    const endPct = Math.min(Math.max(((end - globalMin) / safeRange) * 100, 0), 100);
+    const colorStartPct = Math.min(Math.max(((start - BAR_COLOR_MIN_TEMP) / colorRange) * 100, 0), 100);
+    const colorEndPct = Math.min(Math.max(((end - BAR_COLOR_MIN_TEMP) / colorRange) * 100, 0), 100);
+    const colorWidthPct = Math.max(colorEndPct - colorStartPct, 0.5);
+    const scaleWidthPct = 10000 / colorWidthPct;
+    const scaleOffsetPct = (colorStartPct / colorWidthPct) * 100;
+
+    return {
+      windowStyle: `left:${startPct}%;right:${100 - endPct}%`,
+      scaleStyle: `width:${scaleWidthPct}%;left:-${scaleOffsetPct}%`,
+    };
+  }
+
+  _getMeasuredHeaderHeight(): number {
+    return Math.min(Math.max(this._cardWidth * 0.11, 64), 88);
+  }
   
   static get properties() {
     return {
       hass: { attribute: false },
       config: { state: true },
       _forecast: { state: true },
-      _historyData: { state: true },
       _cardWidth: { state: true },
       _cardHeight: { state: true }
     };
@@ -223,16 +240,13 @@ export class MiniWeatherCard extends LitElement {
         type: 'custom:slick-minimal-weather-card', 
         entity: entity, 
         title: "Wetter", 
-        mode: "daily", 
-        sampling_size: 50, 
-        history_hours: 24 
+      mode: "daily"
     }; 
   }
 
   constructor() {
     super();
     this._forecast = null;
-    this._historyData = [];
     this._cardHeight = 200;
     this._cardWidth = 300;
     
@@ -249,15 +263,14 @@ export class MiniWeatherCard extends LitElement {
     super.connectedCallback();
     this._resizeObserver.observe(this as unknown as Element);
     if (this.hass && this.config) {
-      this._subscribeForecast();
-      this._updateHistory();
+      this._updateForecast();
     }
   }
 
   disconnectedCallback() {
     super.disconnectedCallback();
     this._resizeObserver.disconnect();
-    this._unsubscribeForecast();
+    if (this._forecastInterval) { clearInterval(this._forecastInterval); this._forecastInterval = undefined; }
   }
 
   setConfig(config: MiniWeatherCardConfig) {
@@ -267,10 +280,7 @@ export class MiniWeatherCard extends LitElement {
       title: "Wetter",
       mode: "daily",
       temp_sensor: undefined,
-      history_entity: undefined,
       sun_entity: "sun.sun",
-      sampling_size: 50,
-      history_hours: 24,
       ...config
     };
 
@@ -283,108 +293,143 @@ export class MiniWeatherCard extends LitElement {
 
   updated(changedProps: Map<string, any>) {
     super.updated(changedProps);
-    if (changedProps.has('config') || changedProps.has('hass')) {
-      if (!this._unsub && this.config.entity) this._subscribeForecast();
-      if (this._historyTimeout) clearTimeout(this._historyTimeout);
-      this._historyTimeout = window.setTimeout(() => this._updateHistory(), 10000);
+    const isFirstHass = changedProps.has('hass') && !changedProps.get('hass');
+    if (changedProps.has('config') || isFirstHass) {
+      this._updateForecast();
+      if (this._forecastInterval) clearInterval(this._forecastInterval);
+      this._forecastInterval = window.setInterval(() => this._updateForecast(), 900000);
     }
   }
 
-  async _subscribeForecast() {
-    this._unsubscribeForecast();
-    if (!this.hass || !this.config || !this.config.entity || !this.hass.connection) return;
+  shouldUpdate(changedProps: Map<string, any>) {
+    if (
+      changedProps.has('config') ||
+      changedProps.has('_forecast') ||
+      changedProps.has('_cardWidth') ||
+      changedProps.has('_cardHeight')
+    ) {
+      return true;
+    }
+
+    if (changedProps.has('hass')) {
+      const oldHass = changedProps.get('hass') as HomeAssistant | undefined;
+      if (!oldHass || !this.hass || !this.config) return true;
+
+      const weatherEntity = this.config.entity;
+      const tempEntity = this.config.temp_sensor;
+      const sunEntity = this.config.sun_entity || 'sun.sun';
+
+      return (
+        (weatherEntity ? oldHass.states[weatherEntity] !== this.hass.states[weatherEntity] : false) ||
+        (tempEntity ? oldHass.states[tempEntity] !== this.hass.states[tempEntity] : false) ||
+        (sunEntity ? oldHass.states[sunEntity] !== this.hass.states[sunEntity] : false)
+      );
+    }
+
+    return true;
+  }
+
+  _toOptionalNumber(value: unknown): number | undefined {
+    if (typeof value === 'number' && Number.isFinite(value)) return value;
+    if (typeof value === 'string' && value.trim() !== '') {
+      const parsed = Number(value);
+      if (Number.isFinite(parsed)) return parsed;
+    }
+    return undefined;
+  }
+
+  _normalizeForecast(entries: unknown): ForecastData[] {
+    if (!Array.isArray(entries)) return [];
+
+    const normalizedEntries: Array<ForecastData | null> = entries.map((entry) => {
+        if (!entry || typeof entry !== 'object') return null;
+
+        const forecastEntry = entry as Record<string, unknown>;
+        const datetime = typeof forecastEntry.datetime === 'string' ? forecastEntry.datetime : null;
+        if (!datetime) return null;
+
+        const normalizedEntry: ForecastData = {
+          datetime,
+          condition: typeof forecastEntry.condition === 'string' ? forecastEntry.condition : '',
+        };
+
+        const temperature = this._toOptionalNumber(forecastEntry.temperature);
+        const tempMax = this._toOptionalNumber(forecastEntry.temp_max);
+        const tempLow = this._toOptionalNumber(forecastEntry.templow);
+        const tempMin = this._toOptionalNumber(forecastEntry.temp_min);
+
+        if (temperature !== undefined) normalizedEntry.temperature = temperature;
+        if (tempMax !== undefined) normalizedEntry.temp_max = tempMax;
+        if (tempLow !== undefined) normalizedEntry.templow = tempLow;
+        if (tempMin !== undefined) normalizedEntry.temp_min = tempMin;
+
+        return normalizedEntry;
+      });
+
+    return normalizedEntries.filter((entry): entry is ForecastData => entry !== null);
+  }
+
+  _extractForecastResponse(response: any, entityId: string): unknown {
+    if (response?.service_response?.[entityId]?.forecast) {
+      return response.service_response[entityId].forecast;
+    }
+
+    if (response?.[entityId]?.forecast) {
+      return response[entityId].forecast;
+    }
+
+    if (Array.isArray(response)) {
+      for (const item of response) {
+        if (item?.service_response?.[entityId]?.forecast) {
+          return item.service_response[entityId].forecast;
+        }
+        if (item?.[entityId]?.forecast) {
+          return item[entityId].forecast;
+        }
+      }
+    }
+
+    return [];
+  }
+
+  async _updateForecast() {
+    if (!this.hass || !this.config?.entity) {
+      this._forecast = [];
+      return;
+    }
+
     const entityId = this.config.entity;
     const stateObj = this.hass.states[entityId];
-    if (!stateObj) return;
-
-    if (this.config.mode === 'daily' && stateObj.attributes.forecast?.length > 0) {
-        this._forecast = stateObj.attributes.forecast;
-        return;
+    if (!stateObj) {
+      this._forecast = [];
+      return;
     }
 
-    try {
-        this._unsub = await this.hass.connection.subscribeMessage(
-            (event: any) => { if (event && event.forecast) { this._forecast = event.forecast; this.requestUpdate(); } },
-            { type: "weather/subscribe_forecast", forecast_type: this.config.mode || 'daily', entity_id: entityId }
-        );
-    } catch (err) { console.error("MiniWeatherCard: Subscription failed", err); }
-  }
+    const fallbackForecast = this._normalizeForecast(stateObj.attributes?.forecast);
+    if (fallbackForecast.length > 0 && this.config.mode === 'daily') {
+      this._forecast = fallbackForecast;
+      return;
+    }
 
-  _unsubscribeForecast() {
-    if (this._unsub) { this._unsub(); this._unsub = undefined; }
-  }
-
-  async _updateHistory() {
-    if (!this.hass || !this.config.history_entity) { this._historyData = []; return; }
-    
-    const entityId = this.config.history_entity;
-    const hoursBack = parseInt(String(this.config.history_hours)) || 24;
-    
-    const endTime = new Date();
-    const startTime = new Date(endTime.getTime() - hoursBack * 60 * 60 * 1000);
-    
-    const startStr = encodeURIComponent(startTime.toISOString());
-    const endStr = encodeURIComponent(endTime.toISOString());
-    const entityStr = encodeURIComponent(entityId);
+    const requestToken = ++this._forecastRequestToken;
 
     try {
-        const history = await this.hass.callApi<any[][]>("GET", `history/period/${startStr}?filter_entity_id=${entityStr}&end_time=${endStr}&minimal_response`);
-        if (history && history.length > 0 && history[0].length > 0) {
-            const rawData: HistoryDataPoint[] = history[0]
-                .map((pt: any) => ({ time: new Date(pt.last_changed).getTime(), state: parseFloat(pt.state) }))
-                .filter((pt: HistoryDataPoint) => !isNaN(pt.state));
-            
-            const targetPoints = this.config.sampling_size || 50;
-            if (rawData.length > targetPoints) {
-                const step = Math.ceil(rawData.length / targetPoints);
-                this._historyData = rawData.filter((_, i) => i % step === 0);
-            } else {
-                this._historyData = rawData;
-            }
-        } else {
-            this._historyData = [];
-        }
-    } catch (err) { this._historyData = []; }
-  }
+      const response = await this.hass.callApi<any>(
+        'POST',
+        'services/weather/get_forecasts?return_response',
+        { entity_id: entityId, type: this.config.mode || 'daily' }
+      );
 
-  _calculatePathPoints() {
-    const data = this._historyData;
-    if (!data || data.length < 2 || this._cardWidth === 0 || this._cardHeight === 0) return null;
+      if (requestToken !== this._forecastRequestToken) return;
 
-    const marginY = 20; 
-    const width = this._cardWidth;
-    const height = this._cardHeight;
-    const graphHeight = height - (marginY * 2);
-
-    let minVal = data[0].state;
-    let maxVal = data[0].state;
-    const minTime = data[0].time;
-    const maxTime = data[data.length - 1].time;
-
-    data.forEach(pt => {
-        if (pt.state < minVal) minVal = pt.state;
-        if (pt.state > maxVal) maxVal = pt.state;
-    });
-
-    if (maxVal === minVal) { maxVal += 0.5; minVal -= 0.5; }
-    const valRange = maxVal - minVal;
-    const timeRange = maxTime - minTime;
-    if (timeRange <= 0) return null;
-
-    const points = data.map(pt => {
-        const x = ((pt.time - minTime) / timeRange) * width;
-        const yNormalized = (pt.state - minVal) / valRange;
-        const y = height - marginY - (yNormalized * graphHeight);
-        return [x, y];
-    });
-
-    const linePath = generateSmoothPath(points);
-    if (!linePath) return null;
-
-    return {
-        line: linePath,
-        area: linePath + ` L ${width},${height} L 0,${height} Z`
-    };
+      const forecast = this._normalizeForecast(this._extractForecastResponse(response, entityId));
+      this._forecast = forecast.length > 0 ? forecast : fallbackForecast;
+    } catch (err) {
+      console.error('MiniWeatherCard: Forecast fetch failed', err);
+      if (requestToken === this._forecastRequestToken) {
+        this._forecast = fallbackForecast;
+      }
+    }
   }
 
   render() {
@@ -393,21 +438,21 @@ export class MiniWeatherCard extends LitElement {
 
     const stateObj = this.config.entity ? this.hass.states[this.config.entity] : undefined;
 
-    let currentTemp: number | string = stateObj?.attributes?.temperature ?? '--';
-    if (this.config.temp_sensor) {
-        const sensorState = this.hass.states[this.config.temp_sensor];
-        if (sensorState && !isNaN(parseFloat(sensorState.state))) currentTemp = sensorState.state;
-    }
+    const currentTemp = this._getCurrentTemperatureValue();
 
-    const FIXED_HEIGHT = 110; const ROW_HEIGHT = 28;
-    let maxRows = Math.floor((this._cardHeight - FIXED_HEIGHT) / ROW_HEIGHT);
-    if (maxRows < 0) maxRows = 0;
+    const ROW_HEIGHT = 24;
+    const headerHeight = this._getMeasuredHeaderHeight();
+    const contentPadding = Math.min(Math.max(this._cardWidth * 0.04, 12), 20);
+    const verticalPadding = contentPadding * 2;
+    const forecastTopGap = 4;
+    const bodyHeight = Math.max(this._cardHeight - verticalPadding - headerHeight - forecastTopGap, 0);
     const showForecast = this._cardHeight > 140;
-    const forecast = this._forecast ? this._forecast.slice(0, maxRows) : [];
-    
+    const fullForecast = this._forecast || [];
+    const maxRows = showForecast ? Math.max(Math.floor(bodyHeight / ROW_HEIGHT), 0) : 0;
+    const forecastRows = showForecast ? Math.min(fullForecast.length, maxRows) : 0;
+    const forecast = showForecast ? fullForecast.slice(0, forecastRows) : [];
     const isHourly = this.config.mode === 'hourly';
     let headerLabel: any = html`&nbsp;`;
-    const fullForecast = this._forecast || [];
     if (fullForecast.length > 0) {
         const today = fullForecast[0];
         const h = today.temperature ?? today.temp_max;
@@ -418,34 +463,21 @@ export class MiniWeatherCard extends LitElement {
         else headerLabel = lVal === '--' ? html`H:${hVal}°` : html`H:${hVal}° L:${lVal}°`;
     }
 
-    const pathData = this._calculatePathPoints();
-    const clipPathStyle = pathData ? `path('${pathData.area}')` : 'none';
     const gradients = this._getCurrentGradients();
+    const currentTempLabel = currentTemp !== undefined ? `${Math.round(currentTemp)}°` : '--';
+    const forecastBounds = this._getForecastBounds(fullForecast);
 
     return html`
       <ha-card @click="${this._openMoreInfo}" style="cursor: pointer;">
         <div class="bg-container">
             <div class="bg-layer bright" style="background: ${gradients.bright};"></div>
-            <div class="bg-layer dark" style="background: ${gradients.dark}; clip-path: ${clipPathStyle}; -webkit-clip-path: ${clipPathStyle};"></div>
+            <div class="bg-layer dark" style="background: ${gradients.dark};"></div>
             
-            ${this.config.history_entity && pathData ? html`
-                <svg class="history-svg" viewBox="0 0 ${this._cardWidth} ${this._cardHeight}" preserveAspectRatio="none">
-                    <defs>
-                        <linearGradient id="lineFade" x1="0%" y1="0%" x2="100%" y2="0%">
-                            <stop offset="0%" style="stop-color:white; stop-opacity:0.0;" />
-                            <stop offset="20%" style="stop-color:white; stop-opacity:0.1;" />
-                            <stop offset="100%" style="stop-color:white; stop-opacity:0.8;" />
-                        </linearGradient>
-                    </defs>
-                    
-                    <path d="${pathData.line}" fill="none" stroke="url(#lineFade)" stroke-width="1.2" stroke-linecap="round" vector-effect="non-scaling-stroke" />
-                </svg>
-            ` : ''}
         </div>
 
         <div class="container content-layer">
             <div class="header">
-                <div class="temp-big">${currentTemp !== undefined ? Math.round(Number(currentTemp)) + "°" : "--"}</div>
+        <div class="temp-big">${currentTempLabel}</div>
                 <div class="header-right">
                     <ha-icon icon="${this._getIcon(stateObj ? stateObj.state : '')}" class="main-icon"></ha-icon>
                     <div class="hl-label">${headerLabel}</div>
@@ -454,25 +486,11 @@ export class MiniWeatherCard extends LitElement {
 
             ${showForecast ? html`
                 <div class="forecast-list">
-                    ${(() => {
-                      let globalMin = Infinity, globalMax = -Infinity;
-                      for (const f of forecast) {
-                        const hi = f.temperature ?? f.temp_max;
-                        const lo = f.templow ?? f.temp_min;
-                        if (lo !== undefined && lo < globalMin) globalMin = lo;
-                        if (hi !== undefined && hi > globalMax) globalMax = hi;
-                        if (lo === undefined && hi !== undefined && hi < globalMin) globalMin = hi;
-                      }
-                      if (!isFinite(globalMin)) globalMin = 0;
-                      if (!isFinite(globalMax)) globalMax = globalMin + 1;
-                      if (globalMax === globalMin) globalMax = globalMin + 1;
-                      return forecast.map((day: ForecastData) => this._renderRow(day, globalMin, globalMax));
-                    })()}
+                    ${forecast.map((day: ForecastData) => this._renderRow(day, forecastBounds.min, forecastBounds.max))}
                     ${fullForecast.length === 0 ? html`<div class="loading">Lade...</div>` : ''}
                 </div>
             ` : html`<div style="flex:1;"></div>`} 
 
-            <div class="footer">${this.config.title}</div>
         </div>
       </ha-card>
     `;
@@ -481,16 +499,18 @@ export class MiniWeatherCard extends LitElement {
   _renderRow(day: ForecastData, globalMin: number = 0, globalMax: number = 1) {
     const date = new Date(day.datetime);
     const isHourly = this.config.mode === 'hourly';
-    const label = isHourly ? date.toLocaleTimeString(this.hass.language, { hour: '2-digit', minute: '2-digit' }) : date.toLocaleDateString(this.hass.language, { weekday: 'short' });
+    const label = Number.isNaN(date.getTime())
+      ? ''
+      : isHourly
+        ? date.toLocaleTimeString(this.hass.language, { hour: '2-digit', minute: '2-digit' })
+        : date.toLocaleDateString(this.hass.language, { weekday: 'short' });
     const temp = day.temperature ?? day.temp_max;
     const low = day.templow ?? day.temp_min;
 
     if (isHourly && temp !== undefined) return html`<div class="row hourly"><div class="day-name">${label}</div><div class="icon-small"><ha-icon icon="${this._getIcon(day.condition)}"></ha-icon></div><div class="temp-single">${Math.round(temp)}°</div></div>`;
     else if (low !== undefined && temp !== undefined) {
-      const range = globalMax - globalMin;
-      const leftPct = ((low - globalMin) / range) * 100;
-      const rightPct = ((globalMax - temp) / range) * 100;
-      return html`<div class="row"><div class="day-name">${label}</div><div class="icon-small"><ha-icon icon="${this._getIcon(day.condition)}"></ha-icon></div><div class="bars"><span class="val-low">${Math.round(low)}°</span><div class="bar-track"><div class="bar-fill" style="left:${leftPct}%;right:${rightPct}%"></div></div><span class="val-high">${Math.round(temp)}°</span></div></div>`;
+      const barStyles = this._getBarScaleStyles(low, temp, globalMin, globalMax);
+      return html`<div class="row"><div class="day-name">${label}</div><div class="icon-small"><ha-icon icon="${this._getIcon(day.condition)}"></ha-icon></div><div class="bars"><span class="val-low">${Math.round(low)}°</span><div class="bar-track"><div class="bar-fill-window" style="${barStyles.windowStyle}"><div class="bar-fill-scale" style="${barStyles.scaleStyle}"></div></div></div><span class="val-high">${Math.round(temp)}°</span></div></div>`;
     }
     return html``;
   }
@@ -543,22 +563,20 @@ export class MiniWeatherCard extends LitElement {
         border-radius: var(--ha-card-border-radius, 12px);
         height: 100%; box-sizing: border-box; overflow: hidden; display: flex; flex-direction: column;
         box-shadow: var(--ha-card-box-shadow, none); position: relative;
-        container-type: size;
       }
       .bg-container { position: absolute; top: 0; left: 0; right: 0; bottom: 0; z-index: 0; overflow: hidden; border-radius: var(--ha-card-border-radius, 12px); }
       .bg-layer { position: absolute; top: 0; left: 0; right: 0; bottom: 0; transition: background 1s ease; }
       .bg-layer.bright { z-index: 1; }
       .bg-layer.dark { z-index: 2; }
-      .history-svg { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 3; pointer-events: none; }
       .content-layer { position: relative; z-index: 4; }
-      .container { padding: clamp(12px, 4cqi, 20px); height: 100%; display: flex; flex-direction: column; box-sizing: border-box; min-height: 0; overflow: hidden; }
-      .header { display: flex; justify-content: space-between; align-items: flex-start; flex: 0 0 auto; margin-bottom: clamp(4px, 2cqi, 10px); }
-      .temp-big { font-size: clamp(2rem, 10cqi, 4rem); font-weight: 100; line-height: 1; text-shadow: 0 1px 5px rgba(0,0,0,0.5); white-space: nowrap; letter-spacing: -1px; overflow: hidden; }
+      .container { padding: clamp(12px, 4vw, 20px); height: 100%; display: flex; flex-direction: column; box-sizing: border-box; min-height: 0; overflow: hidden; }
+      .header { display: flex; justify-content: space-between; align-items: flex-start; flex: 0 0 auto; margin-bottom: clamp(2px, 1vw, 6px); }
+      .temp-big { font-size: clamp(2rem, 9vw, 4rem); font-weight: 100; line-height: 1; text-shadow: 0 1px 5px rgba(0,0,0,0.5); white-space: nowrap; letter-spacing: -1px; overflow: hidden; }
       .header-right { display: flex; flex-direction: column; align-items: flex-end; text-shadow: 0 1px 5px rgba(0,0,0,0.5); }
-      .main-icon { --mdc-icon-size: clamp(22px, 7cqi, 36px); margin-bottom: 4px; filter: drop-shadow(0 1px 5px rgba(0,0,0,0.5)); }
-      .hl-label { font-size: clamp(0.75rem, 3cqi, 1rem); font-weight: 300; opacity: 0.9; white-space: nowrap; }
-      .forecast-list { display: flex; flex-direction: column; gap: 0; flex: 1 1 auto; overflow: hidden; justify-content: flex-start; text-shadow: 0 1px 3px rgba(0,0,0,0.8); }
-      .row { display: grid; grid-template-columns: minmax(30px, 50px) 30px 1fr; align-items: center; font-size: clamp(0.75rem, 3cqi, 1rem); height: 28px; }
+      .main-icon { --mdc-icon-size: clamp(22px, 6vw, 36px); margin-bottom: 4px; filter: drop-shadow(0 1px 5px rgba(0,0,0,0.5)); }
+      .hl-label { font-size: clamp(0.75rem, 2.5vw, 1rem); font-weight: 300; opacity: 0.9; white-space: nowrap; }
+      .forecast-list { display: flex; flex-direction: column; gap: 0; flex: 0 0 auto; overflow: hidden; justify-content: flex-start; text-shadow: 0 1px 3px rgba(0,0,0,0.8); }
+      .row { display: grid; grid-template-columns: minmax(30px, 50px) 30px 1fr; align-items: center; font-size: clamp(0.72rem, 2.3vw, 0.95rem); height: 24px; }
       .day-name { font-weight: 400; opacity: 0.9; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
       .icon-small { text-align: center; }
       .icon-small ha-icon { --mdc-icon-size: 20px; filter: drop-shadow(0 1px 2px rgba(0,0,0,0.8)); }
@@ -566,9 +584,9 @@ export class MiniWeatherCard extends LitElement {
       .val-low { opacity: 0.6; width: 25px; text-align: right; }
       .val-high { font-weight: 500; width: 25px; text-align: right; }
       .bar-track { flex-grow: 1; height: 5px; background: rgba(255,255,255,0.15); border-radius: 3px; position: relative; min-width: 50px; max-width: 100px; overflow: hidden; box-shadow: inset 0 1px 2px rgba(0,0,0,0.2); }
-      .bar-fill { position: absolute; top: 0; bottom: 0; background: linear-gradient(90deg, #4facfe 0%, #00f2fe 50%, #f5af19 100%); border-radius: 3px; opacity: 0.85; transition: left 0.4s ease, right 0.4s ease; }
+      .bar-fill-window { position: absolute; top: 0; bottom: 0; border-radius: 3px; overflow: hidden; transition: left 0.4s ease, right 0.4s ease; }
+      .bar-fill-scale { position: absolute; top: 0; bottom: 0; background: linear-gradient(90deg, #4facfe 0%, #00f2fe 50%, #f5af19 100%); border-radius: 3px; opacity: 0.85; transition: width 0.4s ease, left 0.4s ease; }
       .hourly .temp-single { text-align: right; font-weight: 500; padding-right: 5px; }
-      .footer { margin-top: auto; padding-top: 6px; text-align: center; font-size: clamp(0.6rem, 2cqi, 0.75rem); opacity: 0.5; text-transform: uppercase; letter-spacing: 1px; flex: 0 0 auto; text-shadow: 0 1px 2px rgba(0,0,0,0.5); font-weight: 300; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
       .loading { text-align: center; font-size: 0.8rem; opacity: 0.5; padding: 10px; }
     `;
   }
@@ -590,28 +608,7 @@ class MiniWeatherCardEditor extends LitElement {
       { name: "entity", label: "Wetter Entität", selector: { entity: { domain: "weather" } } },
       { name: "title", label: "Titel", selector: { text: {} } },
       { name: "temp_sensor", label: "Temp. Override (Sensor)", selector: { entity: { domain: "sensor" } } },
-      { name: "history_entity", label: "Verlauf (Hintergrund)", selector: { entity: { domain: "sensor" } } },
       { name: "sun_entity", label: "Sonnen-Sensor", selector: { entity: { domain: "sun" } } },
-      
-      { 
-        name: "history_hours", 
-        label: "Verlauf Zeitraum", 
-        selector: { 
-            select: { 
-                options: [
-                    { value: "1", label: "1 Stunde" },
-                    { value: "6", label: "6 Stunden" },
-                    { value: "12", label: "12 Stunden" },
-                    { value: "24", label: "24 Stunden" },
-                    { value: "48", label: "2 Tage" },
-                    { value: "72", label: "3 Tage" },
-                    { value: "168", label: "7 Tage" }
-                ] 
-            } 
-        } 
-      },
-
-      { name: "sampling_size", label: "Glättung (Punkte)", selector: { number: { min: 5, max: 200, mode: "slider" } } },
       { name: "mode", label: "Modus", selector: { select: { options: [ { value: "daily", label: "Täglich" }, { value: "hourly", label: "Stündlich" } ] } } }
     ];
     return html`<ha-form .hass=${this.hass} .data=${this._config} .schema=${schema} .computeLabel=${(s: any) => s.label} @value-changed=${this._valueChanged}></ha-form>`; 
@@ -626,5 +623,5 @@ window.customCards.push({
   type: "slick-minimal-weather-card", 
   name: "Slick Minimal Weather", 
   preview: true,
-  description: "Minimalist weather card with history and forecasting." 
+  description: "Minimalist weather card." 
 });

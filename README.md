@@ -41,15 +41,14 @@ bucket_size: 10         # Width of history bars in degrees (default: 5)
 
 ### 2. Mini Weather Card ☀️
 
-An Apple-style weather card with dynamic gradients based on time of day and weather conditions, featuring smooth temperature history graphs.
+An Apple-style weather card with dynamic gradients based on time of day and weather conditions.
 
 #### Features
 
 * **Dynamic Gradients:** Beautiful gradients that change based on sun position and weather
-* **Temperature History:** Smooth animated graphs showing temperature trends
 * **Forecast Display:** Daily or hourly weather forecast with beautiful icons
 * **Responsive Design:** Adapts to available space
-* **Customizable:** Configure history duration, data sampling, and more
+* **Customizable:** Configure forecast mode and entities
 
 #### Configuration
 
@@ -59,10 +58,7 @@ entity: weather.home
 title: "Weather"
 mode: daily                    # daily or hourly
 temp_sensor: sensor.temperature # Optional: Override temperature sensor
-history_entity: sensor.temperature # Optional: Show temperature history
 sun_entity: sun.sun            # Used for gradient colors
-history_hours: 24              # 1, 6, 12, 24, 48, 72, or 168
-sampling_size: 50              # Number of data points (5-200)
 ```
 
 ### 3. Squircle Clock Card 🕐

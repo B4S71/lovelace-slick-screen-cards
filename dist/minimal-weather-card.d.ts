@@ -3,7 +3,7 @@
  * @version 0.2.0
  */
 import { LitElement } from 'lit';
-import type { HomeAssistant, MiniWeatherCardConfig, ForecastData, HistoryDataPoint } from './types';
+import type { HomeAssistant, MiniWeatherCardConfig, ForecastData } from './types';
 interface Gradients {
     bright: string;
     dark: string;
@@ -12,12 +12,21 @@ export declare class MiniWeatherCard extends LitElement {
     hass: HomeAssistant;
     config: MiniWeatherCardConfig;
     _forecast: ForecastData[] | null;
-    _historyData: HistoryDataPoint[];
     _cardHeight: number;
     _cardWidth: number;
     _resizeObserver: ResizeObserver;
-    _unsub?: () => void;
-    _historyTimeout?: number;
+    _forecastInterval?: number;
+    _forecastRequestToken: number;
+    _getCurrentTemperatureValue(): number | undefined;
+    _getForecastBounds(entries: ForecastData[]): {
+        min: number;
+        max: number;
+    };
+    _getBarScaleStyles(low: number, high: number, globalMin: number, globalMax: number): {
+        windowStyle: string;
+        scaleStyle: string;
+    };
+    _getMeasuredHeaderHeight(): number;
     static get properties(): {
         hass: {
             attribute: boolean;
@@ -26,9 +35,6 @@ export declare class MiniWeatherCard extends LitElement {
             state: boolean;
         };
         _forecast: {
-            state: boolean;
-        };
-        _historyData: {
             state: boolean;
         };
         _cardWidth: {
@@ -44,21 +50,17 @@ export declare class MiniWeatherCard extends LitElement {
         entity: string;
         title: string;
         mode: string;
-        sampling_size: number;
-        history_hours: number;
     };
     constructor();
     connectedCallback(): void;
     disconnectedCallback(): void;
     setConfig(config: MiniWeatherCardConfig): void;
     updated(changedProps: Map<string, any>): void;
-    _subscribeForecast(): Promise<void>;
-    _unsubscribeForecast(): void;
-    _updateHistory(): Promise<void>;
-    _calculatePathPoints(): {
-        line: string;
-        area: string;
-    } | null;
+    shouldUpdate(changedProps: Map<string, any>): boolean;
+    _toOptionalNumber(value: unknown): number | undefined;
+    _normalizeForecast(entries: unknown): ForecastData[];
+    _extractForecastResponse(response: any, entityId: string): unknown;
+    _updateForecast(): Promise<void>;
     render(): import("lit-html").TemplateResult<1>;
     _renderRow(day: ForecastData, globalMin?: number, globalMax?: number): import("lit-html").TemplateResult<1>;
     _getIcon(condition: string): string;

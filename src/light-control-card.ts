@@ -762,16 +762,21 @@ export class LightControlCard extends LitElement {
         text-shadow: 0 1px 3px rgba(0,0,0,0.6);
       }
 
-      /* Vertical with covers: push covers to bottom */
+      /* ── Vertical: header at bottom when no covers (HA tile style) ── */
       .mode-vertical .content {
+        justify-content: flex-end;
+      }
+      /* ── Vertical: header top + covers bottom when covers present ── */
+      .mode-vertical .content:has(.covers-section) {
         justify-content: space-between;
       }
-      /* Vertical without covers: pack at top */
+
+      /* ── Compact (1-row): vertically center, keep left-aligned ── */
       .mode-compact .content {
-        justify-content: flex-start;
+        justify-content: center;
       }
 
-      /* Horizontal: side-by-side */
+      /* ── Horizontal: side-by-side ── */
       .mode-horizontal .content {
         flex-direction: row;
         gap: 12px;
@@ -794,7 +799,7 @@ export class LightControlCard extends LitElement {
         text-shadow: 0 1px 3px rgba(0,0,0,0.6);
       }
       .mode-horizontal .header {
-        align-self: flex-start; /* Pin to top in horizontal */
+        align-self: center; /* Vertically center in horizontal mode */
         min-width: 120px; /* SIZES.HEADER_MIN_W */
         width: auto;
       }
