@@ -13,13 +13,12 @@ import {
   CategoryScale,
   Filler,
   Tooltip,
-  type ChartType,
   type Plugin,
 } from 'chart.js';
 import type { HomeAssistant, EnergyFlowCardConfig, HistoryState } from './types';
 
 declare module 'chart.js' {
-  interface PluginOptionsByType<_TType extends ChartType> {
+  interface PluginOptionsByType {
     zeroLine?: {
       enabled?: boolean;
     };
