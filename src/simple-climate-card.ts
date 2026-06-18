@@ -87,6 +87,7 @@ export class SimpleClimateCard extends LitElement {
 
     if (this.config.name && typeof this.config.name !== 'string') throw new Error("name must be a string");
     if (this.config.hot_water_entity && typeof this.config.hot_water_entity !== 'string') throw new Error("hot_water_entity must be a string");
+    if (this.config.hot_water_active_entity && typeof this.config.hot_water_active_entity !== 'string') throw new Error("hot_water_active_entity must be a string");
     if (this.config.sensors && typeof this.config.sensors !== 'object') throw new Error("sensors must be an object");
   }
 
@@ -243,13 +244,38 @@ export class SimpleClimateCard extends LitElement {
       const activeEntity = this.hass.states[this.config.hot_water_active_entity];
       if (activeEntity) {
         const state = activeEntity.state?.toLowerCase();
-        return state === 'on' || state === 'true' || state === 'heat' || state === 'heating';
+        return state === 'on' || state === 'true' || state === 'heat' || state === 'heating' || state === 'active' || state === 'running';
       }
     }
 
     // Auto-detect based on operation_mode or preset_mode
     const mode = String(hotWaterStateObj?.attributes?.operation_mode || hotWaterStateObj?.attributes?.preset_mode || '').toLowerCase();
     return mode.includes('high') || mode.includes('boost') || mode.includes('performance') || mode.includes('power') || mode.includes('hoch');
+  }
+
+  private _getClimateActivityIndicator(stateObj?: any): { icon: string; tone: 'heating' | 'cooling' } | undefined {
+    const action = String(stateObj?.attributes?.hvac_action || stateObj?.state || '').toLowerCase();
+
+    if (action === 'heating' || action === 'heat') {
+      return { icon: 'mdi:fire', tone: 'heating' };
+    }
+
+    if (action === 'cooling' || action === 'cool') {
+      return { icon: 'mdi:snowflake', tone: 'cooling' };
+    }
+
+    return undefined;
+  }
+
+  private _renderModeIcon(icon: string, indicator?: { icon: string; tone: 'heating' | 'cooling' }) {
+    const displayIcon = indicator?.icon || icon;
+    const iconClass = indicator ? `bubble-icon active-mode-icon ${indicator.tone}` : 'bubble-icon';
+
+    return html`
+      <div class="target-icon-wrap">
+        <ha-icon icon="${displayIcon}" class="${iconClass}"></ha-icon>
+      </div>
+    `;
   }
 
   private _interpolateColor(c1: string, c2: string, factor: number): string {
@@ -617,12 +643,9 @@ export class SimpleClimateCard extends LitElement {
     _renderTargets(stateObj: any, low: number, high: number) {
       const mode = stateObj.state;
       const modeIcon = this._getClimateModeIcon(stateObj);
+      const activityIndicator = this._getClimateActivityIndicator(stateObj);
       const segments = [];
-      segments.push(html`
-        <div class="target-icon-wrap">
-          <ha-icon icon="${modeIcon}" class="bubble-icon"></ha-icon>
-        </div>
-      `);
+      segments.push(this._renderModeIcon(modeIcon, activityIndicator));
        // If off, show state chip but still allow hot water details.
        if (mode === 'off') {
           segments.push(html`<div class="divider"></div>`);
@@ -671,15 +694,14 @@ export class SimpleClimateCard extends LitElement {
       const tankTemperature = hotWaterStateObj.attributes.current_temperature;
       const modeIcon = this._getHotWaterModeIcon(hotWaterStateObj);
       const isHotWaterActive = this._isHotWaterActive(hotWaterStateObj);
+      const activityIndicator = isHotWaterActive ? { icon: 'mdi:fire', tone: 'heating' as const } : undefined;
 
       return html`
         <div
           class="targets hot-water-bubble"
           @click=${(ev: Event) => this._openEntityMoreInfo(hotWaterEntityId, ev)}
         >
-          <div class="target-icon-wrap">
-            <ha-icon icon="${modeIcon}" class="bubble-icon"></ha-icon>
-          </div>
+          ${this._renderModeIcon(modeIcon, activityIndicator)}
           <div class="divider"></div>
           <div class="target-group">
             <div class="target-label">Set</div>
@@ -688,10 +710,7 @@ export class SimpleClimateCard extends LitElement {
           <div class="divider"></div>
           <div class="target-group">
             <div class="target-label">Temp</div>
-            <div class="target-val">
-              ${this._formatTemperature(tankTemperature)}
-              ${isHotWaterActive ? html`<div class="hot-water-indicator"><ha-icon icon="mdi:fire" class="indicator-icon"></ha-icon></div>` : ''}
-            </div>
+            <div class="target-val">${this._formatTemperature(tankTemperature)}</div>
           </div>
         </div>
       `;
@@ -858,7 +877,11 @@ export class SimpleClimateCard extends LitElement {
         display: flex;
         align-items: center;
         justify-content: center;
+        width: clamp(18px, 3.4cqi, 28px);
+        height: clamp(18px, 3.4cqi, 28px);
         min-width: clamp(14px, 2.5cqi, 18px);
+        flex: 0 0 auto;
+        align-self: center;
       }
       .target-label {
         font-size: clamp(0.55rem, 2cqi, 0.7rem);
@@ -883,24 +906,25 @@ export class SimpleClimateCard extends LitElement {
         --mdc-icon-size: clamp(14px, 2.6cqi, 18px);
         width: clamp(14px, 2.6cqi, 18px);
         height: clamp(14px, 2.6cqi, 18px);
+        display: block;
+        line-height: 1;
         opacity: 0.95;
+      }
+      .bubble-icon.active-mode-icon {
+        animation: pulse-glow 1.5s ease-in-out infinite;
+      }
+      .bubble-icon.active-mode-icon.heating {
+        color: #ff9800;
+        filter: drop-shadow(0 0 3px rgba(255, 152, 0, 0.6));
+      }
+      .bubble-icon.active-mode-icon.cooling {
+        color: #81d4fa;
+        filter: drop-shadow(0 0 3px rgba(33, 150, 243, 0.6));
+        animation-name: pulse-glow-cool;
       }
       .hot-water-bubble {
         flex-shrink: 0;
         cursor: pointer;
-      }
-      .hot-water-indicator {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        animation: pulse-glow 1.5s ease-in-out infinite;
-      }
-      .indicator-icon {
-        --mdc-icon-size: clamp(10px, 2cqi, 14px);
-        width: clamp(10px, 2cqi, 14px);
-        height: clamp(10px, 2cqi, 14px);
-        color: #ff9800;
-        filter: drop-shadow(0 0 3px rgba(255, 152, 0, 0.6));
       }
       @keyframes pulse-glow {
         0%, 100% {
@@ -910,6 +934,16 @@ export class SimpleClimateCard extends LitElement {
         50% {
           opacity: 0.7;
           filter: drop-shadow(0 0 6px rgba(255, 152, 0, 0.8));
+        }
+      }
+      @keyframes pulse-glow-cool {
+        0%, 100% {
+          opacity: 1;
+          filter: drop-shadow(0 0 3px rgba(33, 150, 243, 0.6));
+        }
+        50% {
+          opacity: 0.7;
+          filter: drop-shadow(0 0 6px rgba(129, 212, 250, 0.85));
         }
       }
       .target-chip {
@@ -1062,6 +1096,7 @@ class SimpleClimateCardEditor extends LitElement {
         { name: "entity", label: "Entity", selector: { entity: { domain: "climate" } } },
          { name: "name", label: "Name", selector: { text: {} } },
         { name: "hot_water_entity", label: "Hot Water Entity", selector: { entity: { domain: "water_heater" } } },
+        { name: "hot_water_active_entity", label: "Hot Water Active Entity", selector: { entity: {} } },
         { name: "show_heating_graph", label: "Show Heating 24h Graph", selector: { boolean: {} } },
         { name: "heating_graph_entity", label: "Heating Graph Entity (optional)", selector: { entity: {} } },
         { name: "show_hot_water_graph", label: "Show Hot Water 24h Graph", selector: { boolean: {} } },

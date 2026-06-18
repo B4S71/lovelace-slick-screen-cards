@@ -41,6 +41,8 @@ export declare class SimpleClimateCard extends LitElement {
     private _getClimateModeIcon;
     private _getHotWaterModeIcon;
     private _isHotWaterActive;
+    private _getClimateActivityIndicator;
+    private _renderModeIcon;
     private _interpolateColor;
     private _getGradient;
     private _getGraphCacheKey;

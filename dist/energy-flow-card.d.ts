@@ -3,10 +3,9 @@
  * @version 0.2.0
  */
 import { LitElement } from 'lit';
-import { type ChartType } from 'chart.js';
 import type { HomeAssistant, EnergyFlowCardConfig } from './types';
 declare module 'chart.js' {
-    interface PluginOptionsByType<TType extends ChartType> {
+    interface PluginOptionsByType {
         zeroLine?: {
             enabled?: boolean;
         };
