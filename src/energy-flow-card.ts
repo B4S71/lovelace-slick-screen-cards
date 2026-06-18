@@ -13,13 +13,12 @@ import {
   CategoryScale,
   Filler,
   Tooltip,
-  type ChartType,
   type Plugin,
 } from 'chart.js';
 import type { HomeAssistant, EnergyFlowCardConfig, HistoryState } from './types';
 
 declare module 'chart.js' {
-  interface PluginOptionsByType<TType extends ChartType> {
+  interface PluginOptionsByType {
     zeroLine?: {
       enabled?: boolean;
     };
@@ -907,7 +906,7 @@ export class EnergyFlowCard extends LitElement {
     const iconBatt = html`<ha-icon icon="${iconBattName}"></ha-icon>`;
 
     return html`
-      <ha-card class="${isTiny ? 'tiny' : ''} ${isSmall ? 'small' : ''}" style="--flow-accent: ${flowAccent}; --flow-accent-soft: ${this._mixHexColors(flowAccent, '#ffffff', 0.28)}; box-shadow: inset 0 0 0 1px ${this._withAlpha(frameAccent, 0.42)}, 0 18px 36px ${this._withAlpha(frameAccent, 0.14)};">
+      <ha-card class="${isTiny ? 'tiny' : ''} ${isSmall ? 'small' : ''}" style="--flow-accent: ${flowAccent}; --flow-accent-soft: ${this._mixHexColors(flowAccent, '#ffffff', 0.28)}; box-shadow: inset 0 0 0 1px ${this._withAlpha(frameAccent, 0.28)};">
         <div class="bg-layer" style="background: ${this._cachedGradients[0]}; opacity: ${this._activeIndex === 0 ? 1 : 0}"></div>
         <div class="bg-layer" style="background: ${this._cachedGradients[1]}; opacity: ${this._activeIndex === 1 ? 1 : 0}"></div>
         
@@ -1016,7 +1015,7 @@ export class EnergyFlowCard extends LitElement {
                    <span class="batt-state">${isCharging ? 'Laden' : isDischarging ? 'Entladen' : ''}</span>
                 </div>
                 <div class="batt-bar-bg">
-                    <div class="batt-bar-fill" style="width: ${soc}%; background: ${soc < 20 ? 'linear-gradient(90deg, #ff453a 0%, #ff8a80 100%)' : 'linear-gradient(90deg, #4f95ff 0%, #8fbfff 100%)'}; box-shadow: 0 0 12px ${this._withAlpha(soc < 20 ? '#ff453a' : '#4f95ff', 0.32)};"></div>
+                    <div class="batt-bar-fill" style="width: ${soc}%; background: ${soc < 20 ? 'linear-gradient(90deg, #ff453a 0%, #ff8a80 100%)' : 'linear-gradient(90deg, #4f95ff 0%, #8fbfff 100%)'}"></div>
                 </div>
             </div>
           ` : ''}
