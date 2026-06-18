@@ -110,6 +110,7 @@ export interface SimpleClimateCardConfig extends LovelaceCardConfig {
     show_hot_water_graph?: boolean;
     heating_graph_entity?: string;
     hot_water_graph_entity?: string;
+    hot_water_active_entity?: string;
     sensors?: {
         temp?: string;
         target_high?: string;

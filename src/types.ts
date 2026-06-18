@@ -124,6 +124,7 @@ export interface SimpleClimateCardConfig extends LovelaceCardConfig {
   show_hot_water_graph?: boolean;
   heating_graph_entity?: string;
   hot_water_graph_entity?: string;
+  hot_water_active_entity?: string; // Entity or attribute to detect hot water heating
   sensors?: {
     temp?: string;        // override current temp
     target_high?: string; // override target high

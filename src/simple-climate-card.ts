@@ -235,6 +235,23 @@ export class SimpleClimateCard extends LitElement {
     return 'mdi:water-thermometer';
   }
 
+  private _isHotWaterActive(hotWaterStateObj?: any): boolean {
+    if (!hotWaterStateObj) return false;
+
+    // Check config for explicit hot_water_active_entity
+    if (this.config.hot_water_active_entity && this.hass) {
+      const activeEntity = this.hass.states[this.config.hot_water_active_entity];
+      if (activeEntity) {
+        const state = activeEntity.state?.toLowerCase();
+        return state === 'on' || state === 'true' || state === 'heat' || state === 'heating';
+      }
+    }
+
+    // Auto-detect based on operation_mode or preset_mode
+    const mode = String(hotWaterStateObj?.attributes?.operation_mode || hotWaterStateObj?.attributes?.preset_mode || '').toLowerCase();
+    return mode.includes('high') || mode.includes('boost') || mode.includes('performance') || mode.includes('power') || mode.includes('hoch');
+  }
+
   private _interpolateColor(c1: string, c2: string, factor: number): string {
     const hex = (c: string) => {
         const h = c.replace('#', '');
@@ -653,6 +670,7 @@ export class SimpleClimateCard extends LitElement {
       const setTemperature = hotWaterStateObj.attributes.temperature;
       const tankTemperature = hotWaterStateObj.attributes.current_temperature;
       const modeIcon = this._getHotWaterModeIcon(hotWaterStateObj);
+      const isHotWaterActive = this._isHotWaterActive(hotWaterStateObj);
 
       return html`
         <div
@@ -670,7 +688,10 @@ export class SimpleClimateCard extends LitElement {
           <div class="divider"></div>
           <div class="target-group">
             <div class="target-label">Temp</div>
-            <div class="target-val">${this._formatTemperature(tankTemperature)}</div>
+            <div class="target-val">
+              ${this._formatTemperature(tankTemperature)}
+              ${isHotWaterActive ? html`<div class="hot-water-indicator"><ha-icon icon="mdi:fire" class="indicator-icon"></ha-icon></div>` : ''}
+            </div>
           </div>
         </div>
       `;
@@ -848,6 +869,9 @@ export class SimpleClimateCard extends LitElement {
         font-size: clamp(0.75rem, 2.4cqi, 0.95rem);
         font-weight: 400;
         white-space: nowrap;
+        display: flex;
+        align-items: center;
+        gap: 4px;
       }
       .divider {
         width: 1px;
@@ -864,6 +888,29 @@ export class SimpleClimateCard extends LitElement {
       .hot-water-bubble {
         flex-shrink: 0;
         cursor: pointer;
+      }
+      .hot-water-indicator {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        animation: pulse-glow 1.5s ease-in-out infinite;
+      }
+      .indicator-icon {
+        --mdc-icon-size: clamp(10px, 2cqi, 14px);
+        width: clamp(10px, 2cqi, 14px);
+        height: clamp(10px, 2cqi, 14px);
+        color: #ff9800;
+        filter: drop-shadow(0 0 3px rgba(255, 152, 0, 0.6));
+      }
+      @keyframes pulse-glow {
+        0%, 100% {
+          opacity: 1;
+          filter: drop-shadow(0 0 3px rgba(255, 152, 0, 0.6));
+        }
+        50% {
+          opacity: 0.7;
+          filter: drop-shadow(0 0 6px rgba(255, 152, 0, 0.8));
+        }
       }
       .target-chip {
         font-weight: 400;
