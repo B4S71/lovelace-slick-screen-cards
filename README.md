@@ -113,6 +113,37 @@ The card automatically reads from climate entity attributes:
 - `current_temperature` — Current room temperature (gold indicator)
 - Falls back to `target_temperature` if `target_temp_high` not available
 
+### 5. Notification Badge Card 🔔
+
+Round status badges for the view header: upcoming calendar events and active entities.
+
+#### Configuration
+
+```yaml
+type: custom:slick-notification-badge-card
+calendars:
+  - entity: calendar.garbage_collection
+    icon: mdi:trash-can
+    days: 0                          # Lookahead in days (default: 7)
+    rules:                           # First matching pattern sets the color
+      - pattern: Bio
+        color: "#4CAF50"
+entities:
+  - entity: input_boolean.post_mail_alert
+    icon: mdi:mailbox
+    color: "#FFCC00"                 # Shown only while on; tap turns it off
+  - entity: media_player.living_room
+    icon: mdi:music
+    color: "#1DB954"
+    active_states: [playing]         # Default: on, active, home
+    always_show: true                # Keep visible while inactive
+    inactive_color: "rgba(128, 128, 128, 0.45)"  # Default
+    show_picture: false              # Default true: use entity_picture when active
+    tap_action:                      # Any standard HA action replaces turn_off
+      action: navigate
+      navigation_path: "#media"
+```
+
 ## Installation
 
 All cards are built together as part of the same package.

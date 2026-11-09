@@ -59,7 +59,15 @@ export class NotificationBadgeCard extends LitElement {
       return diffDays; 
   }
 
-  private _handleEntityTap(entityId: string) {
+  private _handleEntityTap(entityId: string, tapAction?: Record<string, unknown>) {
+      if (tapAction) {
+          this.dispatchEvent(new CustomEvent('hass-action', {
+              detail: { config: { entity: entityId, tap_action: tapAction }, action: 'tap' },
+              bubbles: true,
+              composed: true,
+          }));
+          return;
+      }
       this.hass.callService('homeassistant', 'turn_off', {
           entity_id: entityId
       });
@@ -127,15 +135,18 @@ export class NotificationBadgeCard extends LitElement {
             const stateObj = this.hass.states[ent.entity];
             if (!stateObj) return;
             
-            if (stateObj.state === 'on' || stateObj.state === 'active' || stateObj.state === 'home') {
-                const isPicture = !!stateObj.attributes.entity_picture;
+            const activeStates = ent.active_states ?? ['on', 'active', 'home'];
+            const isActive = activeStates.includes(stateObj.state);
+            if (isActive || ent.always_show) {
+                const isPicture = isActive && ent.show_picture !== false && !!stateObj.attributes.entity_picture;
                 entityBadges.push({
-                    type: 'entity',
+                    type: isActive ? 'entity' : 'entity inactive',
                     entity: ent.entity,
+                    tapAction: ent.tap_action,
                     icon: ent.icon || stateObj.attributes.icon || 'mdi:alert-circle',
                     label: '',
-                    color: ent.color || '#ff9800', 
-                    active: true,
+                    color: isActive ? (ent.color || '#ff9800') : (ent.inactive_color || 'rgba(128, 128, 128, 0.45)'),
+                    active: isActive,
                     title: stateObj.attributes.friendly_name,
                     entityPicture: isPicture ? stateObj.attributes.entity_picture : null
                 });
@@ -156,7 +167,7 @@ export class NotificationBadgeCard extends LitElement {
             <div class="badge ${badge.type}" 
                  style="background: ${badge.color}; border-color: ${badge.color}"
                  title="${badge.title} (${badge.entity})"
-                 @click=${() => badge.type === 'entity' ? this._handleEntityTap(badge.entity) : this._handleCalendarTap(badge.entity)}>
+                 @click=${() => badge.type === 'calendar' ? this._handleCalendarTap(badge.entity) : this._handleEntityTap(badge.entity, badge.tapAction)}>
                
                ${badge.entityPicture ? html`
                    <div class="badge-icon-img" style="background-image: url('${badge.entityPicture}')"></div>
@@ -213,6 +224,10 @@ export class NotificationBadgeCard extends LitElement {
         box-shadow: 0 2px 4px rgba(0,0,0,0.15);
     }
     
+    .badge.inactive {
+        box-shadow: none;
+    }
+
     /* Make calendars slightly translucent */
     .badge.calendar {
        opacity: 0.85; 
