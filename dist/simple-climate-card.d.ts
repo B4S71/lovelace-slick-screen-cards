@@ -48,9 +48,14 @@ export declare class SimpleClimateCard extends LitElement {
     private _getGraphCacheKey;
     private _resolveHeatingGraphSource;
     private _resolveHotWaterGraphSource;
+    private _resolveHeatingActivitySource;
+    private _resolveHotWaterActivitySource;
     private _isGraphFresh;
+    private _entryTime;
     private _ensureGraphHistory;
-    private _downsamplePoints;
+    /** Step-hold resample onto an evenly spaced time grid so the x axis is linear in time */
+    private _resamplePoints;
+    private _computeActivityBands;
     private _renderGraphTile;
     render(): import("lit-html").TemplateResult<1>;
     _renderTargets(stateObj: any, low: number, high: number): import("lit-html").TemplateResult<1>;

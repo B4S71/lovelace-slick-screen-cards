@@ -125,6 +125,10 @@ export interface SimpleClimateCardConfig extends LovelaceCardConfig {
   heating_graph_entity?: string;
   hot_water_graph_entity?: string;
   hot_water_active_entity?: string; // Entity or attribute to detect hot water heating
+  /** Entity whose on/heating state marks heating periods (default: climate hvac_action) */
+  heating_active_entity?: string;
+  /** Shade heating / hot water periods in the 24h graphs (default: true) */
+  show_activity_bands?: boolean;
   sensors?: {
     temp?: string;        // override current temp
     target_high?: string; // override target high
@@ -197,6 +201,15 @@ export interface EntityBadgeConfig {
   entity: string;
   icon?: string;
   color?: string;
+  /** States that count as active (default: on, active, home) */
+  active_states?: string[];
+  /** Keep the badge visible while inactive, rendered in inactive_color */
+  always_show?: boolean;
+  inactive_color?: string;
+  /** Use the entity_picture instead of the icon (default: true) */
+  show_picture?: boolean;
+  /** Standard HA action; without it a tap turns the entity off */
+  tap_action?: Record<string, unknown>;
 }
 
 export interface NotificationBadgeCardConfig extends LovelaceCardConfig {

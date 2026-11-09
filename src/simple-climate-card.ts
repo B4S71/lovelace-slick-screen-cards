@@ -14,6 +14,7 @@ import {
   Filler,
   Tooltip,
 } from 'chart.js';
+import type { Plugin } from 'chart.js';
 import type {
   HomeAssistant,
   SimpleClimateCardConfig,
@@ -35,11 +36,89 @@ interface GraphSource {
   attributeKey?: string;
 }
 
+interface ActivitySource {
+  entityId: string;
+  attributeKey?: string;
+  activeValues: string[];
+}
+
+/** Activity period in fractional point-index units */
+interface ActivityBand {
+  start: number;
+  end: number;
+}
+
 interface GraphHistory {
   points: number[];
+  bands: ActivityBand[];
   unit?: string;
   fetchedAt: number;
 }
+
+const ACTIVE_STATE_VALUES = ['on', 'true', 'heat', 'heating', 'active', 'running'];
+const GRAPH_WINDOW_MS = 24 * 60 * 60 * 1000;
+
+const activityBandsPlugin: Plugin<'line'> = {
+  id: 'slickActivityBands',
+  beforeDatasetsDraw(chart) {
+    const bands: ActivityBand[] | undefined = (chart as any).$activityBands;
+    const area = chart.chartArea;
+    const pts = chart.getDatasetMeta(0)?.data as any[] | undefined;
+    if (!bands?.length || !area || !pts || pts.length < 2) return;
+
+    const style = (chart as any).$activityStyle || { fill: 'rgba(255, 87, 34, 0.5)', edge: 'rgba(255, 255, 255, 0.55)' };
+    const lastIndex = pts.length - 1;
+    const xAt = (index: number) => pts[0].x + (index / lastIndex) * (pts[lastIndex].x - pts[0].x);
+    const ctx = chart.ctx;
+
+    const traceCurve = () => {
+      ctx.moveTo(pts[0].x, pts[0].y);
+      for (let i = 1; i < pts.length; i++) {
+        const prev = pts[i - 1];
+        const cur = pts[i];
+        if (prev.cp2x !== undefined && cur.cp1x !== undefined) {
+          ctx.bezierCurveTo(prev.cp2x, prev.cp2y, cur.cp1x, cur.cp1y, cur.x, cur.y);
+        } else {
+          ctx.lineTo(cur.x, cur.y);
+        }
+      }
+    };
+
+    ctx.save();
+    for (const band of bands) {
+      const x0 = xAt(band.start);
+      const x1 = Math.max(xAt(band.end), x0 + 1);
+
+      // Area under the curve, clipped to the active period
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(x0, area.top, x1 - x0, area.bottom - area.top);
+      ctx.clip();
+      ctx.beginPath();
+      traceCurve();
+      ctx.lineTo(pts[lastIndex].x, area.bottom);
+      ctx.lineTo(pts[0].x, area.bottom);
+      ctx.closePath();
+      ctx.fillStyle = style.fill;
+      ctx.fill();
+      ctx.restore();
+
+      // Start / end separators
+      ctx.beginPath();
+      ctx.setLineDash([2, 2]);
+      ctx.lineWidth = 1;
+      ctx.strokeStyle = style.edge;
+      for (const x of [x0, x1]) {
+        if (x <= area.left + 0.5 || x >= area.right - 0.5) continue;
+        ctx.moveTo(Math.round(x) + 0.5, area.top);
+        ctx.lineTo(Math.round(x) + 0.5, area.bottom);
+      }
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+    ctx.restore();
+  },
+};
 
 export class SimpleClimateCard extends LitElement {
   hass!: HomeAssistant;
@@ -137,6 +216,7 @@ export class SimpleClimateCard extends LitElement {
 
       if (existing && existing.canvas === canvas) {
         existing.data.labels = labels;
+        (existing as any).$activityBands = graph.bands;
         const dataset = existing.data.datasets[0] as any;
         dataset.data = graph.points;
         dataset.borderColor = palette.line;
@@ -194,8 +274,14 @@ export class SimpleClimateCard extends LitElement {
             padding: { top: 2, right: 0, bottom: 1, left: 0 },
           },
         },
+        plugins: [activityBandsPlugin],
       });
 
+      (chart as any).$activityBands = graph.bands;
+      (chart as any).$activityStyle = colorClass === 'tank-graph'
+        ? { fill: 'rgba(255, 112, 67, 0.55)', edge: 'rgba(255, 204, 188, 0.75)' }
+        : { fill: 'rgba(230, 74, 25, 0.72)', edge: 'rgba(255, 224, 178, 0.85)' };
+      chart.update('none');
       this._charts.set(key, chart);
     });
 
@@ -394,8 +480,10 @@ export class SimpleClimateCard extends LitElement {
     return `linear-gradient(180deg, ${cGrey} 0%, ${cDarkGrey} 100%)`;
   }
 
-  private _getGraphCacheKey(source: GraphSource): string {
-    return source.attributeKey ? `${source.entityId}::${source.attributeKey}` : source.entityId;
+  private _getGraphCacheKey(source: GraphSource, activity?: ActivitySource): string {
+    const base = source.attributeKey ? `${source.entityId}::${source.attributeKey}` : source.entityId;
+    if (!activity) return base;
+    return `${base}|${activity.entityId}${activity.attributeKey ? `::${activity.attributeKey}` : ''}`;
   }
 
   private _resolveHeatingGraphSource(entityId: string): GraphSource {
@@ -418,46 +506,66 @@ export class SimpleClimateCard extends LitElement {
     return { entityId: hotWaterEntityId, attributeKey: 'current_temperature' };
   }
 
-  private _isGraphFresh(source: GraphSource): boolean {
-    const key = this._getGraphCacheKey(source);
+  private _resolveHeatingActivitySource(entityId: string): ActivitySource | undefined {
+    if (this.config.show_activity_bands === false) return undefined;
+    if (this.config.heating_active_entity) {
+      return { entityId: this.config.heating_active_entity, activeValues: ACTIVE_STATE_VALUES };
+    }
+    return { entityId, attributeKey: 'hvac_action', activeValues: ['heating'] };
+  }
+
+  private _resolveHotWaterActivitySource(): ActivitySource | undefined {
+    if (this.config.show_activity_bands === false || !this.config.hot_water_active_entity) return undefined;
+    return { entityId: this.config.hot_water_active_entity, activeValues: ACTIVE_STATE_VALUES };
+  }
+
+  private _isGraphFresh(key: string): boolean {
     const entry = this._graphHistory[key];
     if (!entry) return false;
     return Date.now() - entry.fetchedAt < this._graphCacheMs;
   }
 
-  private async _ensureGraphHistory(source: GraphSource): Promise<void> {
-    const key = this._getGraphCacheKey(source);
-    if (this._isGraphFresh(source) || this._graphFetchInFlight.has(key)) {
+  private _entryTime(entry: HistoryState): number {
+    return new Date(entry.last_updated || entry.last_changed).getTime();
+  }
+
+  private async _ensureGraphHistory(source: GraphSource, activity?: ActivitySource): Promise<void> {
+    const key = this._getGraphCacheKey(source, activity);
+    if (this._isGraphFresh(key) || this._graphFetchInFlight.has(key)) {
       return;
     }
 
     this._graphFetchInFlight.add(key);
 
     const endTime = new Date();
-    const startTime = new Date(endTime.getTime() - 24 * 60 * 60 * 1000);
+    const startTime = new Date(endTime.getTime() - GRAPH_WINDOW_MS);
+    const entityIds = [source.entityId];
+    if (activity && activity.entityId !== source.entityId) entityIds.push(activity.entityId);
 
     try {
       const history = await this.hass.callApi<HistoryState[][]>(
         'GET',
-        `history/period/${startTime.toISOString()}?filter_entity_id=${encodeURIComponent(source.entityId)}&end_time=${endTime.toISOString()}`
+        `history/period/${startTime.toISOString()}?filter_entity_id=${encodeURIComponent(entityIds.join(','))}&end_time=${endTime.toISOString()}`
       );
 
-      const series = history?.[0] || [];
-      const rawValues = series
-        .map((entry) => {
-          if (source.attributeKey) {
-            return parseFloat(String(entry.attributes?.[source.attributeKey]));
-          }
-          return parseFloat(String(entry.state));
-        })
-        .filter((value) => Number.isFinite(value));
+      const seriesFor = (id: string) => (history || []).find((s) => s?.[0]?.entity_id === id) || [];
+      const samples = seriesFor(source.entityId)
+        .map((entry) => ({
+          time: this._entryTime(entry),
+          value: parseFloat(String(source.attributeKey ? entry.attributes?.[source.attributeKey] : entry.state)),
+        }))
+        .filter((sample) => Number.isFinite(sample.value) && Number.isFinite(sample.time));
 
       const targetCount = Math.max(72, Math.min(180, Math.round((this.getBoundingClientRect().width || 300) / 2.5)));
-      const points = this._downsamplePoints(rawValues, targetCount);
+      const points = this._resamplePoints(samples, startTime.getTime(), endTime.getTime(), targetCount);
+      const bands = activity && points.length > 1
+        ? this._computeActivityBands(seriesFor(activity.entityId), activity, startTime.getTime(), endTime.getTime(), points.length)
+        : [];
       const unit = this.hass.states[source.entityId]?.attributes?.unit_of_measurement || '°C';
 
       this._graphHistory[key] = {
         points,
+        bands,
         unit,
         fetchedAt: Date.now(),
       };
@@ -469,23 +577,52 @@ export class SimpleClimateCard extends LitElement {
     }
   }
 
-  private _downsamplePoints(values: number[], targetCount: number): number[] {
-    if (values.length <= targetCount) return values;
+  /** Step-hold resample onto an evenly spaced time grid so the x axis is linear in time */
+  private _resamplePoints(samples: { time: number; value: number }[], start: number, end: number, count: number): number[] {
+    if (!samples.length) return [];
     const result: number[] = [];
-    const step = (values.length - 1) / (targetCount - 1);
-    for (let i = 0; i < targetCount; i++) {
-      const idx = Math.round(i * step);
-      result.push(values[idx]);
+    const step = (end - start) / (count - 1);
+    let cursor = 0;
+    for (let i = 0; i < count; i++) {
+      const t = start + i * step;
+      while (cursor + 1 < samples.length && samples[cursor + 1].time <= t) cursor++;
+      result.push(samples[cursor].value);
     }
     return result;
   }
 
-  private _renderGraphTile(label: string, source: GraphSource, colorClass: string) {
-    const cacheKey = this._getGraphCacheKey(source);
+  private _computeActivityBands(series: HistoryState[], activity: ActivitySource, start: number, end: number, pointCount: number): ActivityBand[] {
+    const toIndex = (t: number) => ((Math.min(Math.max(t, start), end) - start) / (end - start)) * (pointCount - 1);
+    const isActive = (entry: HistoryState) => {
+      const raw = activity.attributeKey ? entry.attributes?.[activity.attributeKey] : entry.state;
+      return activity.activeValues.includes(String(raw ?? '').toLowerCase());
+    };
+
+    const bands: ActivityBand[] = [];
+    let activeSince: number | undefined;
+    for (const entry of series) {
+      const time = this._entryTime(entry);
+      if (!Number.isFinite(time)) continue;
+      const active = isActive(entry);
+      if (active && activeSince === undefined) {
+        activeSince = time;
+      } else if (!active && activeSince !== undefined) {
+        bands.push({ start: toIndex(activeSince), end: toIndex(time) });
+        activeSince = undefined;
+      }
+    }
+    if (activeSince !== undefined) {
+      bands.push({ start: toIndex(activeSince), end: toIndex(end) });
+    }
+    return bands.filter((band) => band.end > band.start);
+  }
+
+  private _renderGraphTile(label: string, source: GraphSource, colorClass: string, activity?: ActivitySource, moreInfoEntityId?: string) {
+    const cacheKey = this._getGraphCacheKey(source, activity);
     const graph = this._graphHistory[cacheKey];
 
-    if (!graph || !this._isGraphFresh(source)) {
-      void this._ensureGraphHistory(source);
+    if (!graph || !this._isGraphFresh(cacheKey)) {
+      void this._ensureGraphHistory(source, activity);
     }
 
     const values = graph?.points || [];
@@ -494,7 +631,7 @@ export class SimpleClimateCard extends LitElement {
     const max = values.length ? Math.max(...values) : undefined;
 
     return html`
-      <div class="graph-tile ${colorClass}">
+      <div class="graph-tile ${colorClass}" @click=${(ev: Event) => this._openEntityMoreInfo(moreInfoEntityId || source.entityId, ev)}>
         <div class="graph-head">
           <div class="graph-title">${label}</div>
           <div class="graph-value">${latest !== undefined ? `${latest.toFixed(1)}${graph?.unit || '°C'}` : '--'}</div>
@@ -592,10 +729,10 @@ export class SimpleClimateCard extends LitElement {
 
     const graphTiles = [];
     if (heatingGraphSource) {
-      graphTiles.push(this._renderGraphTile('Inside 24h', heatingGraphSource, 'heating-graph'));
+      graphTiles.push(this._renderGraphTile('Inside 24h', heatingGraphSource, 'heating-graph', this._resolveHeatingActivitySource(entityId), entityId));
     }
     if (hotWaterGraphSource) {
-      graphTiles.push(this._renderGraphTile('Tank 24h', hotWaterGraphSource, 'tank-graph'));
+      graphTiles.push(this._renderGraphTile('Tank 24h', hotWaterGraphSource, 'tank-graph', this._resolveHotWaterActivitySource(), hotWaterEntityId));
     }
     const graphColumnsClass = graphTiles.length === 2 ? 'two-cols' : 'one-col';
 
@@ -963,6 +1100,7 @@ export class SimpleClimateCard extends LitElement {
         grid-template-columns: 1fr 1fr;
       }
       .graph-tile {
+        cursor: pointer;
         background: rgba(0, 0, 0, 0.2);
         border-radius: 12px;
         padding: 9px 11px;
@@ -1100,7 +1238,9 @@ class SimpleClimateCardEditor extends LitElement {
         { name: "show_heating_graph", label: "Show Heating 24h Graph", selector: { boolean: {} } },
         { name: "heating_graph_entity", label: "Heating Graph Entity (optional)", selector: { entity: {} } },
         { name: "show_hot_water_graph", label: "Show Hot Water 24h Graph", selector: { boolean: {} } },
-        { name: "hot_water_graph_entity", label: "Hot Water Graph Entity (optional)", selector: { entity: {} } }
+        { name: "hot_water_graph_entity", label: "Hot Water Graph Entity (optional)", selector: { entity: {} } },
+        { name: "show_activity_bands", label: "Shade Heating / Hot Water Periods in Graphs (default on)", selector: { boolean: {} } },
+        { name: "heating_active_entity", label: "Heating Active Entity (optional, default: hvac_action)", selector: { entity: {} } }
       ];
 
       return html`
