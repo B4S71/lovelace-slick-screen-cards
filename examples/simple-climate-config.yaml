@@ -6,3 +6,11 @@ sensors:
   # temp: sensor.living_room_temperature
   # target_high: sensor.target_temp_high
   # target_low: sensor.target_temp_low
+
+# 24h graphs with shaded activity periods (dashed lines mark start / end)
+# hot_water_entity: water_heater.hot_water_system
+# show_heating_graph: true
+# show_hot_water_graph: true
+# hot_water_active_entity: binary_sensor.hot_water_heating   # shades the tank graph
+# heating_active_entity: binary_sensor.burner                 # optional, default: climate hvac_action == heating
+# show_activity_bands: true                                   # default true
