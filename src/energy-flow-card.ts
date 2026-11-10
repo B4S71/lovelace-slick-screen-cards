@@ -3,7 +3,7 @@
  * @version 0.2.0
  */
 
-import { LitElement, html, css } from 'lit';
+import { LitElement, html, css, type PropertyValues } from 'lit';
 import {
   Chart,
   LineController,
@@ -16,6 +16,7 @@ import {
   type Plugin,
 } from 'chart.js';
 import type { HomeAssistant, EnergyFlowCardConfig, HistoryState } from './types';
+import { collectConfigEntityIds, hasRelevantChange } from './hass-utils';
 
 declare module 'chart.js' {
   interface PluginOptionsByType {
@@ -83,6 +84,9 @@ export class EnergyFlowCard extends LitElement {
   private _graphFetchInFlight = new Set<string>();
   private _graphCacheMs = 5 * 60 * 1000;
   private _charts = new Map<string, Chart>();
+  // Graph data each chart was last drawn with; history only refreshes every few minutes
+  private _chartGraphs = new Map<string, GraphHistory>();
+  private _entityIds = new Set<string>();
   private _solarTodayFromTotalCache: Record<string, { value: number; fetchedAt: number }> = {};
   private _solarTodayFromTotalFetchInFlight = new Set<string>();
   private _solarTodayFromTotalCacheMs = 5 * 60 * 1000;
@@ -126,6 +130,7 @@ export class EnergyFlowCard extends LitElement {
     if (newConfig.inverted_battery && typeof newConfig.inverted_battery !== 'boolean') throw new Error("inverted_battery must be a boolean");
 
     this.config = newConfig as EnergyFlowCardConfig;
+    this._entityIds = collectConfigEntityIds(this.config);
   }
 
   // --- STATE ---
@@ -160,12 +165,17 @@ export class EnergyFlowCard extends LitElement {
         chart.destroy();
       }
       this._charts.clear();
+      this._chartGraphs.clear();
       super.disconnectedCallback();
   }
 
-    protected updated(): void {
+  protected shouldUpdate(changedProps: PropertyValues): boolean {
+    return hasRelevantChange(changedProps, this.hass, this._entityIds);
+  }
+
+  protected updated(): void {
     this._syncPowerCharts();
-    }
+  }
 
   // --- HELPER ---
   private _getState(entity?: string): number {
@@ -424,6 +434,8 @@ export class EnergyFlowCard extends LitElement {
       const positiveGrid = values.map((value) => (value > 0 ? value : null));
       const negativeGrid = values.map((value) => (value < 0 ? value : null));
       if (existing && existing.canvas === canvas) {
+        if (this._chartGraphs.get(chartKey) === graph) return;
+        this._chartGraphs.set(chartKey, graph);
         existing.data.labels = labels;
         if (isGridSplit && existing.data.datasets.length === 2) {
           const positiveDataset = existing.data.datasets[0] as any;
@@ -529,12 +541,14 @@ export class EnergyFlowCard extends LitElement {
       });
 
       this._charts.set(chartKey, chart);
+      this._chartGraphs.set(chartKey, graph);
     });
 
     for (const [key, chart] of this._charts.entries()) {
       if (!activeKeys.has(key)) {
         chart.destroy();
         this._charts.delete(key);
+        this._chartGraphs.delete(key);
       }
     }
   }

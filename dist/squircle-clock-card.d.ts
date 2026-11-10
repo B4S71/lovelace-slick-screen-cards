@@ -7,6 +7,7 @@ export declare class SquircleClockCard extends HTMLElement {
     private _hass?;
     private config;
     private _timer?;
+    private _timeout?;
     private _resizeObserver?;
     private hourHand?;
     private minuteHand?;

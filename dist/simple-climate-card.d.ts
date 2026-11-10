@@ -2,7 +2,7 @@
  * Simple Climate Card
  * @version 0.2.0
  */
-import { LitElement } from 'lit';
+import { LitElement, type PropertyValues } from 'lit';
 import type { HomeAssistant, SimpleClimateCardConfig } from './types';
 export declare class SimpleClimateCard extends LitElement {
     hass: HomeAssistant;
@@ -11,6 +11,8 @@ export declare class SimpleClimateCard extends LitElement {
     private _graphFetchInFlight;
     private _graphCacheMs;
     private _charts;
+    private _chartGraphs;
+    private _entityIds;
     static get properties(): {
         hass: {
             attribute: boolean;
@@ -34,6 +36,7 @@ export declare class SimpleClimateCard extends LitElement {
     };
     setConfig(config: SimpleClimateCardConfig): void;
     disconnectedCallback(): void;
+    protected shouldUpdate(changedProps: PropertyValues): boolean;
     protected updated(): void;
     private _getChartPalette;
     private _syncCharts;

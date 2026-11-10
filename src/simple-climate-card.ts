@@ -3,7 +3,7 @@
  * @version 0.2.0
  */
 
-import { LitElement, html, css } from 'lit';
+import { LitElement, html, css, type PropertyValues } from 'lit';
 import {
   Chart,
   LineController,
@@ -20,6 +20,7 @@ import type {
   SimpleClimateCardConfig,
   HistoryState,
 } from './types';
+import { collectConfigEntityIds, hasRelevantChange } from './hass-utils';
 
 Chart.register(LineController, LineElement, PointElement, LinearScale, CategoryScale, Filler, Tooltip);
 
@@ -127,6 +128,9 @@ export class SimpleClimateCard extends LitElement {
   private _graphFetchInFlight = new Set<string>();
   private _graphCacheMs = 5 * 60 * 1000;
   private _charts = new Map<string, Chart>();
+  // Graph data each chart was last drawn with; history only refreshes every few minutes
+  private _chartGraphs = new Map<string, GraphHistory>();
+  private _entityIds = new Set<string>();
 
   static get properties() {
     return {
@@ -163,6 +167,7 @@ export class SimpleClimateCard extends LitElement {
   setConfig(config: SimpleClimateCardConfig) {
     if (!config) throw new Error("Invalid configuration");
     this.config = { name: "Climate", ...config };
+    this._entityIds = collectConfigEntityIds(this.config);
 
     if (this.config.name && typeof this.config.name !== 'string') throw new Error("name must be a string");
     if (this.config.hot_water_entity && typeof this.config.hot_water_entity !== 'string') throw new Error("hot_water_entity must be a string");
@@ -175,7 +180,12 @@ export class SimpleClimateCard extends LitElement {
       chart.destroy();
     }
     this._charts.clear();
+    this._chartGraphs.clear();
     super.disconnectedCallback();
+  }
+
+  protected shouldUpdate(changedProps: PropertyValues): boolean {
+    return hasRelevantChange(changedProps, this.hass, this._entityIds);
   }
 
   protected updated(): void {
@@ -215,6 +225,8 @@ export class SimpleClimateCard extends LitElement {
       const existing = this._charts.get(key);
 
       if (existing && existing.canvas === canvas) {
+        if (this._chartGraphs.get(key) === graph) return;
+        this._chartGraphs.set(key, graph);
         existing.data.labels = labels;
         (existing as any).$activityBands = graph.bands;
         const dataset = existing.data.datasets[0] as any;
@@ -283,12 +295,14 @@ export class SimpleClimateCard extends LitElement {
         : { fill: 'rgba(230, 74, 25, 0.72)', edge: 'rgba(255, 224, 178, 0.85)' };
       chart.update('none');
       this._charts.set(key, chart);
+      this._chartGraphs.set(key, graph);
     });
 
     for (const [key, chart] of this._charts.entries()) {
       if (!activeKeys.has(key)) {
         chart.destroy();
         this._charts.delete(key);
+        this._chartGraphs.delete(key);
       }
     }
   }
