@@ -58,6 +58,7 @@ export class SquircleClockCard extends HTMLElement {
   private _hass?: HomeAssistant;
   private config!: SquircleClockCardConfig;
   private _timer?: number;
+  private _timeout?: number;
   private _resizeObserver?: ResizeObserver;
   private hourHand?: SVGLineElement | null;
   private minuteHand?: SVGLineElement | null;
@@ -133,7 +134,7 @@ export class SquircleClockCard extends HTMLElement {
   }
 
   _startClock() {
-    if(this._timer) cancelAnimationFrame(this._timer);
+    this._stopClock();
     const update = () => {
       const now = new Date();
       let displayTime = now;
@@ -162,15 +163,23 @@ export class SquircleClockCard extends HTMLElement {
 
       if (this.config?.display_mode === 'digital') {
         this._updateDigital(displayTime);
+        // Digital only changes once per second: wake up just after the next full second
+        // instead of every frame, which kept weak wall-panel GPUs busy at 60 fps.
+        this._timeout = window.setTimeout(update, 1000 - now.getMilliseconds() + 10);
       } else {
         this._updateAnalog(displayTime);
+        this._timer = requestAnimationFrame(update);
       }
-      this._timer = requestAnimationFrame(update);
     };
     this._timer = requestAnimationFrame(update);
   }
 
-  _stopClock() { if (this._timer) cancelAnimationFrame(this._timer); }
+  _stopClock() {
+    if (this._timer) cancelAnimationFrame(this._timer);
+    if (this._timeout) clearTimeout(this._timeout);
+    this._timer = undefined;
+    this._timeout = undefined;
+  }
 
   // --- MATHEMATIK ---
   _getPointOnRoundedRect(angleDeg: number, w: number, h: number, radius: number, inset: number): { x: number; y: number } {

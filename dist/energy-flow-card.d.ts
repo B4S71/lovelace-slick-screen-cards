@@ -2,7 +2,7 @@
  * Energy Flow Card
  * @version 0.2.0
  */
-import { LitElement } from 'lit';
+import { LitElement, type PropertyValues } from 'lit';
 import type { HomeAssistant, EnergyFlowCardConfig } from './types';
 declare module 'chart.js' {
     interface PluginOptionsByType {
@@ -18,6 +18,8 @@ export declare class EnergyFlowCard extends LitElement {
     private _graphFetchInFlight;
     private _graphCacheMs;
     private _charts;
+    private _chartGraphs;
+    private _entityIds;
     private _solarTodayFromTotalCache;
     private _solarTodayFromTotalFetchInFlight;
     private _solarTodayFromTotalCacheMs;
@@ -50,6 +52,7 @@ export declare class EnergyFlowCard extends LitElement {
     private _height;
     connectedCallback(): void;
     disconnectedCallback(): void;
+    protected shouldUpdate(changedProps: PropertyValues): boolean;
     protected updated(): void;
     private _getState;
     private _formatEnergy;
